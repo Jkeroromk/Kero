@@ -59,6 +59,14 @@ To work on the engine at the same time, clone `Kero-Engine` next to this repo an
 | `Kero/Settings` | Settings and acknowledgements |
 | `project.yml` | XcodeGen project definition |
 
+## TestFlight (no Mac needed)
+
+The **TestFlight** workflow archives, signs and uploads the app from GitHub's Mac machines.
+Start it from **Actions → TestFlight → Run workflow** (works from a phone). It needs these
+repository secrets: `ENGINE_TOKEN`, `APPLE_TEAM_ID`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8`
+(an App Store Connect API key with the Admin role, so Xcode can create the signing certificate
+and profile automatically). Each run uses the workflow run number as the build number.
+
 ## CI
 
 Every push is compiled for iOS by GitHub Actions. CI needs a repository secret named `ENGINE_TOKEN`:

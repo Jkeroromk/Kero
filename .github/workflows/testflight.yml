@@ -1,0 +1,111 @@
+name: TestFlight
+
+# Builds, signs and uploads Kero to TestFlight — no Mac needed.
+# Run it from the Actions tab (works from the GitHub website on a phone).
+#
+# Required repository secrets:
+#   ENGINE_TOKEN    fine-grained token, Contents: Read on Jkeroromk/Kero-Engine
+#   APPLE_TEAM_ID   10-character Team ID (developer.apple.com → Membership)
+#   ASC_KEY_ID      App Store Connect API key ID
+#   ASC_ISSUER_ID   App Store Connect API issuer ID
+#   ASC_KEY_P8      Contents of the AuthKey_XXXX.p8 file (the whole text, including BEGIN/END lines)
+
+on:
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: "What to test (shown in TestFlight)"
+        required: false
+        default: ""
+
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    name: Archive & upload
+    runs-on: macos-26
+    timeout-minutes: 90
+    env:
+      ENGINE_TOKEN: ${{ secrets.ENGINE_TOKEN }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check secrets
+        run: |
+          missing=""
+          for name in ENGINE_TOKEN APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error title=Missing secrets::Add these repository secrets:$missing"
+            exit 1
+          fi
+
+      - name: Set up
+        run: |
+          git config --global url."https://x-access-token:${ENGINE_TOKEN}@github.com/".insteadOf "https://github.com/"
+          XCODE="$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$XCODE" ]; then sudo xcode-select -s "$XCODE/Contents/Developer"; fi
+          echo "::notice title=Xcode::$(xcodebuild -version | tr '\n' ' ')"
+          brew install xcodegen
+          xcodegen
+
+          KEY_PATH="$RUNNER_TEMP/AuthKey_${ASC_KEY_ID}.p8"
+          printf '%s\n' "$ASC_KEY_P8" > "$KEY_PATH"
+          echo "KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+          sed "s/__TEAM_ID__/${APPLE_TEAM_ID}/" ci/ExportOptions.plist > "$RUNNER_TEMP/ExportOptions.plist"
+
+      - name: Archive
+        run: |
+          mkdir -p build
+          xcodebuild archive \
+            -project Kero.xcodeproj -scheme Kero -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/Kero.xcarchive \
+            -derivedDataPath build/DerivedData \
+            -scmProvider system \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            > build/archive.log 2>&1 || true
+          ERRORS="$(grep -E "error: |error:" build/archive.log | sed "s#$GITHUB_WORKSPACE/##" | sort -u | head -40 | awk '{printf "%s%%0A", $0}')"
+          if [ -n "$ERRORS" ]; then echo "::error title=Archive errors::$ERRORS"; fi
+          grep -q "ARCHIVE SUCCEEDED" build/archive.log || { tail -80 build/archive.log; exit 1; }
+
+      - name: Upload to App Store Connect
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath build/Kero.xcarchive \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath build/export \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            > build/upload.log 2>&1 || true
+          ERRORS="$(grep -iE "error" build/upload.log | sort -u | head -40 | awk '{printf "%s%%0A", $0}')"
+          if [ -n "$ERRORS" ]; then echo "::error title=Upload errors::$ERRORS"; fi
+          grep -qE "EXPORT SUCCEEDED|Upload succeeded|Uploaded" build/upload.log || { tail -80 build/upload.log; exit 1; }
+          echo "::notice title=Uploaded::Build ${{ github.run_number }} is processing in App Store Connect. It shows up in TestFlight in about 10–30 minutes."
+
+      - name: Clean up key
+        if: always()
+        run: rm -f "$KEY_PATH"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: testflight-logs
+          path: build/*.log
+          if-no-files-found: ignore

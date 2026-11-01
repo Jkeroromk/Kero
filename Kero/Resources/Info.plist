@@ -3,6 +3,8 @@
 <plist version="1.0">
 <dict>
 	<!-- Merged with the keys Xcode generates from INFOPLIST_KEY_* build settings. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>GCSupportsControllerUserInteraction</key>
 	<true/>
 	<key>GCSupportedGameControllers</key>
