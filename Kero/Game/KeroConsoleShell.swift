@@ -28,6 +28,22 @@ struct KeroConsoleShell: View
             RadialGradient(colors: [Color.white.opacity(0.05), .clear],
                            center: .top, startRadius: 0, endRadius: max(self.layout.size.width, self.layout.size.height) * 0.7)
 
+            // Hinge groove between the two halves of the clamshell.
+            if !self.layout.hinge.isEmpty
+            {
+                VStack(spacing: 0) {
+                    Rectangle().fill(Color.black.opacity(0.45)).frame(height: 2)
+                    Rectangle().fill(Color.white.opacity(0.05)).frame(height: 1)
+                }
+                .frame(width: self.layout.size.width)
+                .position(x: self.layout.hinge.midX, y: self.layout.hinge.midY)
+
+                Rectangle()
+                    .fill(LinearGradient(colors: [.black.opacity(0.0), .black.opacity(0.18), .black.opacity(0.0)], startPoint: .top, endPoint: .bottom))
+                    .frame(width: self.layout.size.width, height: self.layout.hinge.height)
+                    .position(x: self.layout.hinge.midX, y: self.layout.hinge.midY)
+            }
+
             // Bezel
             RoundedRectangle(cornerRadius: self.bezelRadius, style: .continuous)
                 .fill(LinearGradient(colors: [Color(white: 0.055), Color(white: 0.03)], startPoint: .top, endPoint: .bottom))

@@ -35,6 +35,8 @@ struct KeroConsoleLayout: Equatable
     /// Strip under the screen for the power light and wordmark (portrait only).
     var label: CGRect = .zero
     var speaker: CGRect = .zero
+    /// Portrait: the band across the middle where a foldable's hinge is. Nothing interactive goes here.
+    var hinge: CGRect = .zero
 
     var menu: CGRect = .zero
     var dpad: CGRect = .zero
@@ -100,51 +102,57 @@ private extension KeroConsoleLayout
 
     // MARK: Portrait
 
+    /// Clamshell, like a GBA SP: screen in the top half, controls in the bottom half, and nothing
+    /// interactive across the middle, where iPhone Duo's hinge is when the inner display is upright.
     mutating func layoutPortrait(insets: EdgeInsets, aspect: CGFloat, shoulders: Bool)
     {
         let width = self.size.width
         let height = self.size.height
         let margin = Self.clamp(width * 0.05, 14, 32)
 
-        // Bezel and screen. The picture uses the full width unless that would leave too little room for controls.
-        let top = max(insets.top, 10) + 6
+        let hingeHeight = height * 0.08
+        self.hinge = CGRect(x: 0, y: height / 2 - hingeHeight / 2, width: width, height: hingeHeight)
+
+        // Top half: bezel with the picture and a label strip, centred in the space above the hinge.
+        let top = max(insets.top, 10) + 4
+        let topLimit = self.hinge.minY - 6
         let padding = Self.clamp(width * 0.035, 8, 18)
         let labelHeight: CGFloat = 26
 
         var screenWidth = width - margin * 2 - padding * 2
         var screenHeight = screenWidth / aspect
-        let maxScreenHeight = height * 0.46
+        let maxScreenHeight = topLimit - top - padding - labelHeight
         if screenHeight > maxScreenHeight
         {
-            screenHeight = maxScreenHeight
+            screenHeight = max(maxScreenHeight, 40)
             screenWidth = screenHeight * aspect
         }
 
-        let bezelWidth = screenWidth + padding * 2
-        self.bezel = CGRect(x: (width - bezelWidth) / 2, y: top, width: bezelWidth, height: padding + screenHeight + labelHeight)
+        let bezelSize = CGSize(width: screenWidth + padding * 2, height: padding + screenHeight + labelHeight)
+        let bezelY = top + max(0, (topLimit - top - bezelSize.height) / 2)
+        self.bezel = CGRect(x: (width - bezelSize.width) / 2, y: bezelY, width: bezelSize.width, height: bezelSize.height)
         self.screen = CGRect(x: self.bezel.minX + padding, y: self.bezel.minY + padding, width: screenWidth, height: screenHeight)
         self.label = CGRect(x: self.screen.minX, y: self.screen.maxY, width: screenWidth, height: labelHeight)
 
-        // Controls.
+        // Bottom half.
         let bottom = height - max(insets.bottom, 12) - 6
-        let areaTop = self.bezel.maxY + Self.clamp(height * 0.022, 10, 26)
+        let areaTop = self.hinge.maxY + 8
 
-        let shoulderHeight: CGFloat = 38
-        let rowCenterY = areaTop + shoulderHeight / 2
+        let shoulderHeight: CGFloat = 42
         if shoulders
         {
-            let shoulderWidth = Self.clamp(width * 0.26, 84, 150)
+            let shoulderWidth = Self.clamp(width * 0.27, 90, 160)
             self.l = CGRect(x: margin, y: areaTop, width: shoulderWidth, height: shoulderHeight)
             self.r = CGRect(x: width - margin - shoulderWidth, y: areaTop, width: shoulderWidth, height: shoulderHeight)
         }
-        self.menu = Self.square(center: CGPoint(x: width / 2, y: rowCenterY), size: 38)
+        self.menu = Self.square(center: CGPoint(x: width / 2, y: areaTop + shoulderHeight / 2), size: 40)
 
-        let bodyTop = areaTop + shoulderHeight + 8
-        let pillSize = CGSize(width: 66, height: 26)
+        let bodyTop = areaTop + shoulderHeight + 10
+        let pillSize = CGSize(width: 68, height: 28)
         let selectRowHeight = pillSize.height + 18
         let mainHeight = max(bottom - bodyTop - selectRowHeight, 80)
 
-        let dpadSize = max(Self.clamp(min(width * 0.38, mainHeight * 0.84), 100, 210), 0)
+        let dpadSize = Self.clamp(min(width * 0.38, mainHeight * 0.86), 100, 210)
         let centerY = bodyTop + mainHeight / 2
         self.dpad = CGRect(x: margin + width * 0.02, y: centerY - dpadSize / 2, width: dpadSize, height: dpadSize)
 
@@ -154,11 +162,10 @@ private extension KeroConsoleLayout
         self.a = Self.square(center: aCenter, size: faceSize)
         self.b = Self.square(center: bCenter, size: faceSize)
 
-        let pillY = min(bottom - pillSize.height, self.dpad.maxY + 18)
+        let pillY = min(bottom - pillSize.height, self.dpad.maxY + 16)
         self.select = CGRect(x: width / 2 - pillSize.width - 10, y: pillY, width: pillSize.width, height: pillSize.height)
         self.start = CGRect(x: width / 2 + 10, y: pillY, width: pillSize.width, height: pillSize.height)
 
-        // Speaker grille in the bottom-right corner, if there's room under the face buttons.
         let speakerSize = CGSize(width: 64, height: 40)
         let speakerY = max(self.b.maxY + 16, pillY - 8)
         if speakerY + speakerSize.height <= bottom + 4
@@ -169,62 +176,57 @@ private extension KeroConsoleLayout
 
     // MARK: Landscape
 
+    /// GBA-style: picture in the middle, controls in narrow columns either side. The columns are
+    /// sized to the controls (not a fixed share of the screen) so the picture gets as much room as possible.
+    /// L/R sit above the D-pad and face buttons, where thumbs reach; the menu button stays off the centre
+    /// line (iPhone Duo's hinge runs down the middle of the inner display in landscape).
     mutating func layoutLandscape(insets: EdgeInsets, aspect: CGFloat, shoulders: Bool)
     {
         let width = self.size.width
         let height = self.size.height
-        let margin = Self.clamp(height * 0.04, 10, 24)
+        let margin = Self.clamp(height * 0.03, 10, 20)
 
         let left = insets.leading + margin
         let right = width - insets.trailing - margin
         let top = max(insets.top, margin)
         let bottom = height - max(insets.bottom, margin)
 
-        let columnWidth = Self.clamp(height * 0.34, 140, 230)
-        let padding: CGFloat = 10
+        let dpadSize = Self.clamp(height * 0.27, 110, 172)
+        let faceSize = dpadSize * 0.44
+        let columnWidth = max(dpadSize * 1.14, faceSize * 2.5)
 
-        // Picture between the two control columns.
-        let center = CGRect(x: left + columnWidth, y: top, width: max(right - left - columnWidth * 2, 100), height: bottom - top)
+        // Picture between the columns, as big as fits.
+        let padding: CGFloat = 7
+        let gap = margin * 0.6
+        let center = CGRect(x: left + columnWidth + gap, y: top,
+                            width: max(right - left - (columnWidth + gap) * 2, 100), height: bottom - top)
         self.screen = Self.fit(aspect: aspect, in: center.insetBy(dx: padding, dy: padding))
         self.bezel = self.screen.insetBy(dx: -padding, dy: -padding)
 
-        let shoulderSize = CGSize(width: min(columnWidth, 130), height: 38)
-        if shoulders
-        {
-            self.l = CGRect(x: left, y: top, width: shoulderSize.width, height: shoulderSize.height)
-            self.r = CGRect(x: right - shoulderSize.width, y: top, width: shoulderSize.width, height: shoulderSize.height)
-        }
-
-        let dpadSize = Self.clamp(min(columnWidth - 8, height * 0.42), 100, 190)
         let leftX = left + columnWidth / 2
         let rightX = right - columnWidth / 2
-        let centerY = height * 0.55
+        let centerY = height * 0.58
 
         self.dpad = Self.square(center: CGPoint(x: leftX, y: centerY), size: dpadSize)
+        self.a = Self.square(center: CGPoint(x: rightX + faceSize * 0.6, y: centerY - faceSize * 0.38), size: faceSize)
+        self.b = Self.square(center: CGPoint(x: rightX - faceSize * 0.6, y: centerY + faceSize * 0.38), size: faceSize)
 
-        let faceSize = dpadSize * 0.42
-        self.a = Self.square(center: CGPoint(x: rightX + faceSize * 0.64, y: centerY - faceSize * 0.38), size: faceSize)
-        self.b = Self.square(center: CGPoint(x: rightX - faceSize * 0.64, y: centerY + faceSize * 0.38), size: faceSize)
+        // Shoulders: big, just above the D-pad / face buttons.
+        let shoulderHeight = Self.clamp(height * 0.085, 42, 56)
+        let shoulderY = max(top + 46, self.dpad.minY - dpadSize * 0.12 - shoulderHeight - 14)
+        if shoulders
+        {
+            self.l = CGRect(x: left, y: shoulderY, width: columnWidth, height: shoulderHeight)
+            self.r = CGRect(x: right - columnWidth, y: shoulderY, width: columnWidth, height: shoulderHeight)
+        }
 
-        let pillSize = CGSize(width: 64, height: 26)
+        let pillSize = CGSize(width: 66, height: 28)
         let pillY = bottom - pillSize.height
         self.select = CGRect(x: leftX - pillSize.width / 2, y: pillY, width: pillSize.width, height: pillSize.height)
         self.start = CGRect(x: rightX - pillSize.width / 2, y: pillY, width: pillSize.width, height: pillSize.height)
 
-        // Home button: above or below the bezel if there's room, otherwise in the right column.
-        if self.bezel.minY - top >= 44
-        {
-            self.menu = Self.square(center: CGPoint(x: width / 2, y: (top + self.bezel.minY) / 2), size: 38)
-        }
-        else if bottom - self.bezel.maxY >= 44
-        {
-            self.menu = Self.square(center: CGPoint(x: width / 2, y: (self.bezel.maxY + bottom) / 2), size: 38)
-        }
-        else
-        {
-            let y = shoulders ? self.r.maxY + 30 : top + 19
-            self.menu = Self.square(center: CGPoint(x: rightX, y: y), size: 38)
-        }
+        // Menu: top of the right column.
+        self.menu = Self.square(center: CGPoint(x: rightX, y: top + 20), size: 40)
     }
 
     // MARK: Overlay
