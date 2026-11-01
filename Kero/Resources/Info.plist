@@ -20,7 +20,7 @@
 	</array>
 	<key>GCSupportsGameMode</key>
 	<true/>
-	<key>UTImportedTypeDeclarations</key>
+	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>
 			<key>UTTypeIdentifier</key>
@@ -61,7 +61,7 @@
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>
-			<string>Owner</string>
+			<string>Alternate</string>
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>com.jkeroro.kero.gba</string>
@@ -69,6 +69,20 @@
 				<string>com.jkeroro.kero.gb</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Zip Archive</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.zip-archive</string>
+			</array>
+		</dict>
 	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Kero uses your local network for Wi-Fi Transfer, so you can send games from a computer's browser to this iPhone.</string>
 </dict>
 </plist>

@@ -47,61 +47,188 @@ enum KeroLibrary
     {
         var imported: [KeroGame] = []
         var duplicates: [String] = []
-        var failures: [(name: String, error: Error)] = []
+        var failures: [(name: String, reason: String)] = []
+
+        /// Alert-style summary, or nil when everything went fine.
+        var summary: (title: String, text: String)? {
+            var lines = [String]()
+            if !self.duplicates.isEmpty
+            {
+                lines.append("Already in your library: " + self.duplicates.joined(separator: ", "))
+            }
+            for failure in self.failures
+            {
+                lines.append("\(failure.name): \(failure.reason)")
+            }
+            guard !lines.isEmpty else { return nil }
+
+            let total = self.imported.count + self.duplicates.count + self.failures.count
+            let title = self.imported.isEmpty ? "Nothing Imported" : "Imported \(self.imported.count) of \(total)"
+            return (title, lines.joined(separator: "\n"))
+        }
     }
 
-    /// Copies ROMs into the library. Files already in the library (same contents) are skipped.
-    @MainActor
-    static func importFiles(_ urls: [URL], into context: ModelContext) -> ImportResult
+    /// A game file staged in the temporary folder, ready to be added to the library.
+    struct Candidate
     {
+        var stagedURL: URL
+        var name: String
+        var system: KeroSystem
+        var identifier: String
+    }
+
+    /// Copies games into the library: single files, whole folders and zip archives.
+    /// The slow part (copying, unzipping, hashing) runs off the main thread.
+    @MainActor
+    static func importFiles(_ urls: [URL], into context: ModelContext) async -> ImportResult
+    {
+        let staged = await Task.detached(priority: .userInitiated) {
+            return self.stage(urls)
+        }.value
+
         var result = ImportResult()
+        result.failures = staged.failures
 
         try? FileManager.default.createDirectory(at: self.gamesDirectory, withIntermediateDirectories: true)
+
+        var seen = Set<String>()
+        for candidate in staged.candidates
+        {
+            defer { try? FileManager.default.removeItem(at: candidate.stagedURL) }
+
+            let identifier = candidate.identifier
+            let existing = FetchDescriptor<KeroGame>(predicate: #Predicate { $0.identifier == identifier })
+            if seen.contains(identifier) || ((try? context.fetchCount(existing)) ?? 0) > 0
+            {
+                result.duplicates.append(candidate.name)
+                continue
+            }
+
+            do
+            {
+                let fileName = identifier + "." + candidate.stagedURL.pathExtension.lowercased()
+                let destination = self.gamesDirectory.appendingPathComponent(fileName)
+                if !FileManager.default.fileExists(atPath: destination.path)
+                {
+                    try FileManager.default.moveItem(at: candidate.stagedURL, to: destination)
+                }
+
+                let displayName = KeroGameName.displayName(fileName: candidate.name, romURL: destination, system: candidate.system)
+                let game = KeroGame(identifier: identifier, name: displayName, fileName: fileName, system: candidate.system)
+                context.insert(game)
+                result.imported.append(game)
+                seen.insert(identifier)
+            }
+            catch
+            {
+                result.failures.append((candidate.name, error.localizedDescription))
+            }
+        }
+
+        try? context.save()
+        return result
+    }
+
+    // MARK: Staging (background)
+
+    private static let zipExtensions: Set<String> = ["zip"]
+
+    private static func stage(_ urls: [URL]) -> (candidates: [Candidate], failures: [(name: String, reason: String)])
+    {
+        var candidates: [Candidate] = []
+        var failures: [(name: String, reason: String)] = []
+
+        func stageFile(_ url: URL, quietIfUnsupported: Bool)
+        {
+            let name = url.deletingPathExtension().lastPathComponent
+            let pathExtension = url.pathExtension.lowercased()
+
+            do
+            {
+                if self.zipExtensions.contains(pathExtension)
+                {
+                    let games = try self.stageZip(url)
+                    if games.isEmpty
+                    {
+                        failures.append((url.lastPathComponent, "No Game Boy or GBA games inside."))
+                    }
+                    candidates.append(contentsOf: games)
+                }
+                else if let system = KeroCores.system(for: url)
+                {
+                    let staged = try self.coordinatedCopy(of: url)
+                    let identifier = try KeroGameStorage.identifier(forROMAt: staged)
+                    candidates.append(Candidate(stagedURL: staged, name: name, system: system, identifier: identifier))
+                }
+                else if !quietIfUnsupported
+                {
+                    failures.append((url.lastPathComponent, "Kero can't open .\(pathExtension.isEmpty ? "?" : pathExtension) files."))
+                }
+            }
+            catch
+            {
+                failures.append((url.lastPathComponent, error.localizedDescription))
+            }
+        }
 
         for url in urls
         {
             let accessing = url.startAccessingSecurityScopedResource()
             defer { if accessing { url.stopAccessingSecurityScopedResource() } }
 
-            let name = url.deletingPathExtension().lastPathComponent
-
-            do
+            var isDirectory: ObjCBool = false
+            if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue
             {
-                guard let system = KeroCores.system(for: url) else { throw KeroEngineError.unsupportedFile(url) }
-
-                // Files in iCloud Drive may not be downloaded yet; a coordinated read fetches them.
-                let localURL = try self.coordinatedCopy(of: url)
-                defer { try? FileManager.default.removeItem(at: localURL) }
-
-                let identifier = try KeroGameStorage.identifier(forROMAt: localURL)
-
-                let existing = FetchDescriptor<KeroGame>(predicate: #Predicate { $0.identifier == identifier })
-                if (try? context.fetchCount(existing)) ?? 0 > 0
+                // Whole folder: pick up every game and zip inside, ignore everything else.
+                let keys: [URLResourceKey] = [.isRegularFileKey]
+                let enumerator = FileManager.default.enumerator(at: url, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles, .skipsPackageDescendants])
+                var found = 0
+                while let file = enumerator?.nextObject() as? URL
                 {
-                    result.duplicates.append(name)
-                    continue
+                    guard (try? file.resourceValues(forKeys: Set(keys)).isRegularFile) == true else { continue }
+                    let before = candidates.count
+                    stageFile(file, quietIfUnsupported: true)
+                    found += candidates.count - before
                 }
 
-                let fileName = identifier + "." + url.pathExtension.lowercased()
-                let destination = self.gamesDirectory.appendingPathComponent(fileName)
-                if !FileManager.default.fileExists(atPath: destination.path)
+                if found == 0 && failures.isEmpty
                 {
-                    try FileManager.default.copyItem(at: localURL, to: destination)
+                    failures.append((url.lastPathComponent, "No Game Boy or GBA games in this folder."))
                 }
-
-                let displayName = KeroGameName.displayName(fileName: name, romURL: destination, system: system)
-                let game = KeroGame(identifier: identifier, name: displayName, fileName: fileName, system: system)
-                context.insert(game)
-                result.imported.append(game)
             }
-            catch
+            else
             {
-                result.failures.append((name, error))
+                stageFile(url, quietIfUnsupported: false)
             }
         }
 
-        try? context.save()
-        return result
+        return (candidates, failures)
+    }
+
+    /// Extracts every supported game from a zip into the temporary folder.
+    private static func stageZip(_ url: URL) throws -> [Candidate]
+    {
+        let local = try self.coordinatedCopy(of: url)
+        defer { try? FileManager.default.removeItem(at: local) }
+
+        let archive = try KeroZipArchive(url: local)
+        var candidates: [Candidate] = []
+
+        for entry in archive.entries where !entry.isDirectory && !entry.path.hasPrefix("__MACOSX/") && !entry.fileName.hasPrefix(".")
+        {
+            let entryURL = URL(fileURLWithPath: entry.fileName)
+            guard let system = KeroCores.system(for: entryURL) else { continue }
+
+            let staged = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathExtension(entryURL.pathExtension)
+            try archive.extract(entry, to: staged)
+
+            let identifier = try KeroGameStorage.identifier(forROMAt: staged)
+            candidates.append(Candidate(stagedURL: staged, name: entryURL.deletingPathExtension().lastPathComponent, system: system, identifier: identifier))
+        }
+
+        return candidates
     }
 
     /// One-time cleanup of names imported before Kero tidied file names

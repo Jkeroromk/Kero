@@ -22,7 +22,7 @@ final class AppModel
     /// True while the game screen is in front.
     var isPlaying = false
 
-    var isImporting = false
+    var isShowingAddGames = false
     var isShowingSettings = false
     var gamePendingDeletion: KeroGame?
     var gamePendingRename: KeroGame?
@@ -32,7 +32,7 @@ final class AppModel
     @ObservationIgnored var modelContext: ModelContext?
 
     var isShowingSheet: Bool {
-        return self.isImporting || self.isShowingSettings || self.gamePendingDeletion != nil || self.gamePendingRename != nil || self.message != nil
+        return self.isShowingAddGames || self.isShowingSettings || self.gamePendingDeletion != nil || self.gamePendingRename != nil || self.message != nil
     }
 
     func returnHome()
@@ -52,35 +52,32 @@ final class AppModel
         }
     }
 
-    func handleImport(_ result: Result<[URL], Error>)
+    /// Number of import jobs running (shows a spinner in Add Games).
+    var importsInProgress = 0
+
+    /// Imports and returns the result, for callers that show it themselves (Add Games, Wi-Fi Transfer).
+    @discardableResult
+    func importFiles(_ urls: [URL]) async -> KeroLibrary.ImportResult
     {
-        switch result
-        {
-        case .success(let urls): self.importFiles(urls)
-        case .failure(let error): self.message = AppMessage(title: "Import Failed", text: error.localizedDescription)
-        }
+        guard let modelContext, !urls.isEmpty else { return KeroLibrary.ImportResult() }
+
+        self.importsInProgress += 1
+        defer { self.importsInProgress -= 1 }
+
+        return await KeroLibrary.importFiles(urls, into: modelContext)
     }
 
-    func importFiles(_ urls: [URL])
+    /// Imports and reports problems in an alert ("Open in Kero", AirDrop).
+    func importAndReport(_ urls: [URL], cleanup: (() -> Void)? = nil)
     {
-        guard let modelContext else { return }
+        Task {
+            let result = await self.importFiles(urls)
+            cleanup?()
 
-        let result = KeroLibrary.importFiles(urls, into: modelContext)
-
-        var lines = [String]()
-        if !result.duplicates.isEmpty
-        {
-            lines.append("Already in your library: " + result.duplicates.joined(separator: ", "))
-        }
-        for failure in result.failures
-        {
-            lines.append("\(failure.name): \(failure.error.localizedDescription)")
-        }
-
-        if !lines.isEmpty
-        {
-            let title = result.imported.isEmpty ? "Nothing Imported" : "Imported \(result.imported.count) of \(urls.count)"
-            self.message = AppMessage(title: title, text: lines.joined(separator: "\n"))
+            if let summary = result.summary
+            {
+                self.message = AppMessage(title: summary.title, text: summary.text)
+            }
         }
     }
 
@@ -158,7 +155,7 @@ extension AppModel: KeroHomeHost
 
     func showImport()
     {
-        self.isImporting = true
+        self.isShowingAddGames = true
     }
 
     func showSettings()

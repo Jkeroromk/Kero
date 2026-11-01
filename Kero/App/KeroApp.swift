@@ -58,10 +58,9 @@ struct RootView: View
             appModel.modelContext = self.modelContext
             KeroLibrary.tidyNames(in: self.modelContext)
         }
-        .fileImporter(isPresented: $appModel.isImporting,
-                      allowedContentTypes: KeroLibrary.importableTypes,
-                      allowsMultipleSelection: true) { result in
-            appModel.handleImport(result)
+        .sheet(isPresented: $appModel.isShowingAddGames) {
+            KeroAddGamesView()
+                .environment(appModel)
         }
         .sheet(isPresented: $appModel.isShowingSettings) {
             SettingsView()
@@ -92,8 +91,9 @@ struct RootView: View
         .onOpenURL { url in
             // "Open in Kero" from Files or AirDrop. iOS hands us a copy in Documents/Inbox;
             // the library keeps its own copy, so drop the Inbox one afterwards.
-            appModel.importFiles([url])
-            KeroLibrary.removeInboxCopy(url)
+            appModel.importAndReport([url]) {
+                KeroLibrary.removeInboxCopy(url)
+            }
         }
         .onChange(of: self.scenePhase) { _, phase in
             if phase != .active, appModel.isPlaying
