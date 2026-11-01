@@ -537,7 +537,7 @@ private struct KeroControllerHints: View
         {
             HStack(spacing: 16) {
                 self.hint("A", self.model.row == .games ? "Play" : "Select")
-                self.hint("Y", "Favorite")
+                self.hint("X", "Favorite")
                 if self.model.row != .games { self.hint("B", "Back") }
             }
             .padding(.bottom, 14)
