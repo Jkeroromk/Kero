@@ -20,6 +20,10 @@ on:
         description: "What to test (shown in TestFlight)"
         required: false
         default: ""
+      revoke_certificates_created_on:
+        description: "One-time cleanup: revoke Apple Development certificates created on this day (YYYY-MM-DD) by earlier runs"
+        required: false
+        default: ""
 
 concurrency:
   group: testflight
@@ -111,6 +115,15 @@ jobs:
           echo "KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
           sed "s/__TEAM_ID__/${APPLE_TEAM_ID}/" ci/ExportOptions.plist > "$RUNNER_TEMP/ExportOptions.plist"
 
+      # Each run gets a fresh keychain, so automatic signing creates an Apple Development certificate.
+      # Apple caps how many an account can have: remember what exists, and revoke what this run adds.
+      - name: Snapshot certificates
+        env:
+          CLEANUP_DAY: ${{ github.event.inputs.revoke_certificates_created_on }}
+        run: |
+          if [ -n "$CLEANUP_DAY" ]; then python3 ci/asc_certs.py revoke-created-on "$CLEANUP_DAY"; fi
+          python3 ci/asc_certs.py snapshot "$RUNNER_TEMP/certificates-before.json"
+
       - name: Archive
         run: |
           mkdir -p build
@@ -168,6 +181,10 @@ jobs:
             exit 1
           fi
           rm -f ~/.appstoreconnect/private_keys/AuthKey_*.p8
+
+      - name: Revoke this run's certificate
+        if: always()
+        run: python3 ci/asc_certs.py revoke-new "$RUNNER_TEMP/certificates-before.json" || true
 
       - name: Clean up key
         if: always()
