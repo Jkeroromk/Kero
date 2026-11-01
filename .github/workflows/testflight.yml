@@ -11,9 +11,9 @@ name: TestFlight
 #   ASC_KEY_P8      Contents of the AuthKey_XXXX.p8 file (the whole text, including BEGIN/END lines)
 
 on:
-  # Pushing a tag like testflight-12 also starts an upload.
+  # Pushing to the `testflight` branch also starts an upload.
   push:
-    tags: ["testflight-*"]
+    branches: [testflight]
   workflow_dispatch:
     inputs:
       notes:
