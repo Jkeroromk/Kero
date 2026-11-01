@@ -128,7 +128,9 @@ jobs:
           if [ -n "$ERRORS" ]; then echo "::error title=Archive errors::$ERRORS"; fi
           grep -q "ARCHIVE SUCCEEDED" build/archive.log || { tail -80 build/archive.log; exit 1; }
 
-      - name: Upload to App Store Connect
+      # Export the signed .ipa locally, then upload it with altool. (Xcode's built-in
+      # "destination: upload" path fails to authenticate API keys on Xcode 26.6.)
+      - name: Export IPA
         run: |
           xcodebuild -exportArchive \
             -archivePath build/Kero.xcarchive \
@@ -138,11 +140,28 @@ jobs:
             -authenticationKeyPath "$KEY_PATH" \
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            > build/export.log 2>&1 || true
+          ERRORS="$(grep -iE "error" build/export.log | sort -u | head -40 | awk '{printf "%s%%0A", $0}')"
+          if [ -n "$ERRORS" ]; then echo "::error title=Export errors::$ERRORS"; fi
+          ls build/export/*.ipa >/dev/null 2>&1 || { tail -60 build/export.log; exit 1; }
+
+      - name: Upload to App Store Connect
+        run: |
+          # altool looks for the key in ~/.appstoreconnect/private_keys.
+          mkdir -p ~/.appstoreconnect/private_keys
+          cp "$KEY_PATH" ~/.appstoreconnect/private_keys/
+          IPA="$(ls build/export/*.ipa | head -1)"
+          xcrun altool --upload-app -f "$IPA" -t ios --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" --output-format normal \
             > build/upload.log 2>&1 || true
-          ERRORS="$(grep -iE "error" build/upload.log | sort -u | head -40 | awk '{printf "%s%%0A", $0}')"
-          if [ -n "$ERRORS" ]; then echo "::error title=Upload errors::$ERRORS"; fi
-          grep -qE "EXPORT SUCCEEDED|Upload succeeded|Uploaded" build/upload.log || { tail -80 build/upload.log; exit 1; }
-          echo "::notice title=Uploaded::Build ${{ github.run_number }} is processing in App Store Connect. It shows up in TestFlight in about 10–30 minutes."
+          cat build/upload.log | tail -40
+          ERRORS="$(grep -iE "error|fail" build/upload.log | sort -u | head -40 | awk '{printf "%s%%0A", $0}')"
+          if grep -qiE "UPLOAD SUCCEEDED|No errors uploading" build/upload.log; then
+            echo "::notice title=Uploaded::Build ${{ github.run_number }} is processing in App Store Connect. It shows up in TestFlight in about 10–30 minutes."
+          else
+            echo "::error title=Upload errors::$ERRORS"
+            exit 1
+          fi
+          rm -f ~/.appstoreconnect/private_keys/AuthKey_*.p8
 
       - name: Clean up key
         if: always()
