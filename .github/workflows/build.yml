@@ -1,0 +1,67 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Compile (unsigned, iOS device)
+    runs-on: macos-26
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    env:
+      ENGINE_TOKEN: ${{ secrets.ENGINE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check engine access
+        run: |
+          if [ -z "$ENGINE_TOKEN" ]; then
+            echo "::warning title=ENGINE_TOKEN missing::Add a repository secret ENGINE_TOKEN (a fine-grained token with read access to Jkeroromk/Kero-Engine) so CI can fetch the engine."
+            echo "SKIP=1" >> "$GITHUB_ENV"
+          else
+            git config --global url."https://x-access-token:${ENGINE_TOKEN}@github.com/".insteadOf "https://github.com/"
+          fi
+
+      - name: Generate Xcode project
+        if: env.SKIP != '1'
+        run: |
+          brew install xcodegen
+          XCODE="$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$XCODE" ]; then sudo xcode-select -s "$XCODE/Contents/Developer"; fi
+          xcodebuild -version
+          xcodegen
+
+      - name: Build
+        if: env.SKIP != '1'
+        run: |
+          mkdir -p build
+          xcodebuild build -project Kero.xcodeproj -scheme Kero -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData -scmProvider system CODE_SIGNING_ALLOWED=NO > build/xcodebuild.log 2>&1 || true
+          ERRORS="$(grep -E "error: " build/xcodebuild.log | sed "s#$GITHUB_WORKSPACE/##" | sort -u | head -60 | awk '{printf "%s%%0A", $0}')"
+          if [ -n "$ERRORS" ]; then echo "::error title=Compiler errors::$ERRORS"; fi
+          grep -q "BUILD SUCCEEDED" build/xcodebuild.log || { tail -60 build/xcodebuild.log; exit 1; }
+
+      # Private repo: also publish a summary to the ci-status branch for tools without API access.
+      - name: Publish results
+        if: always() && env.SKIP != '1'
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p out
+          { echo "commit: $GITHUB_SHA"; echo "run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"; echo "result: ${{ job.status }}"; } > out/status.txt
+          if [ -f build/xcodebuild.log ]; then
+            grep -E "error:|warning: .*Kero/|BUILD (SUCCEEDED|FAILED)" build/xcodebuild.log | sed "s#$GITHUB_WORKSPACE/##g" | sort -u | head -300 > out/build.txt || true
+            tail -60 build/xcodebuild.log | sed "s#$GITHUB_WORKSPACE/##g" > out/build.tail.txt
+          fi
+          cd out && git init -q && git checkout -q -b ci-status && git add . \
+            && git -c user.name="Kero CI" -c user.email="ci@localhost" commit -q -m "CI results for $GITHUB_SHA" \
+            && git push -q -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" ci-status

@@ -1,0 +1,55 @@
+# Kero — generate the Xcode project with XcodeGen:
+#   brew install xcodegen && xcodegen
+name: Kero
+
+options:
+  bundleIdPrefix: com.jkeroro
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ""   # Set yours in Xcode, or: DEVELOPMENT_TEAM=XXXXXXXXXX xcodegen
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+
+packages:
+  KeroEngine:
+    url: https://github.com/Jkeroromk/Kero-Engine
+    branch: main
+  # Working on the engine at the same time? Clone it next to this repo and use:
+  # KeroEngine:
+  #   path: ../Kero-Engine
+
+targets:
+  Kero:
+    type: application
+    platform: iOS
+    sources:
+      - path: Kero
+        excludes:
+          - Resources/Info.plist
+    dependencies:
+      - package: KeroEngine
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jkeroro.Kero
+        PRODUCT_NAME: Kero
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: Kero/Resources/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Kero
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.games
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_UIStatusBarHidden: YES
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+        INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: NO
+        INFOPLIST_KEY_UIFileSharingEnabled: YES
