@@ -20,7 +20,7 @@ enum KeroCommand: Equatable
     case right
     case confirm
     case back
-    case action        // Y: favorite
+    case action        // X: favorite
     case resume        // Menu / Start: back into the running game
     case pageUp
     case pageDown
@@ -75,11 +75,10 @@ final class KeroInputRouter
         }
         self.observers.removeAll()
 
-        for controller in GCController.controllers()
-        {
-            controller.extendedGamepad?.valueChangedHandler = nil
-        }
-        GCKeyboard.coalesced?.keyboardInput?.keyChangedHandler = nil
+        // Leave the controller and keyboard handlers in place: by the time this runs (after
+        // `isPlaying` flips), KeroEngine's KeroControllerInput has usually installed its own,
+        // and clearing them here would leave the game with no input. Our handlers go inert
+        // via the `isRunning` checks, and `attach()` replaces them when the home screen returns.
 
         self.stopRepeating()
         self.held.removeAll()
@@ -111,6 +110,8 @@ private extension KeroInputRouter
 
     func gamepadChanged(_ gamepad: GCExtendedGamepad)
     {
+        guard self.isRunning else { return }
+
         let stick = gamepad.leftThumbstick
 
         // Same positional layout as in-game: right face button confirms, bottom goes back.
@@ -129,6 +130,8 @@ private extension KeroInputRouter
 
     func keyChanged(_ keyCode: GCKeyCode, pressed: Bool)
     {
+        guard self.isRunning else { return }
+
         let command: KeroCommand?
         switch keyCode
         {

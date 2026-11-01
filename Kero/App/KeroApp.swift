@@ -81,8 +81,10 @@ struct RootView: View
             Text(appModel.message?.text ?? "")
         }
         .onOpenURL { url in
-            // "Open in Kero" from Files or AirDrop.
+            // "Open in Kero" from Files or AirDrop. iOS hands us a copy in Documents/Inbox;
+            // the library keeps its own copy, so drop the Inbox one afterwards.
             appModel.importFiles([url])
+            KeroLibrary.removeInboxCopy(url)
         }
         .onChange(of: self.scenePhase) { _, phase in
             if phase != .active, appModel.isPlaying
