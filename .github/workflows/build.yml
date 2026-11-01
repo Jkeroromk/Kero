@@ -13,7 +13,7 @@ concurrency:
 jobs:
   build:
     name: Compile (unsigned, iOS device)
-    runs-on: macos-26
+    runs-on: xcode-27  # Xcode 27.x / iOS 27.1 SDK: needed for the iPhone Duo inner display
     timeout-minutes: 60
     permissions:
       contents: write

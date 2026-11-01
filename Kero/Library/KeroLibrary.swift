@@ -21,11 +21,10 @@ enum KeroLibrary
         return URL.applicationSupportDirectory.appendingPathComponent("Artwork", isDirectory: true)
     }
 
-    /// File types the importer offers. Extensions without a system UTI fall back to plain data.
+    /// The picker accepts any file; `importFiles` decides what's a game by its extension.
+    /// (Filtering by type in the picker greys out ROMs whenever iOS doesn't know the extension.)
     static var importableTypes: [UTType] {
-        let extensions = KeroCores.supportedFileExtensions.sorted()
-        let types = extensions.compactMap { UTType(filenameExtension: $0, conformingTo: .data) }
-        return types + [.zip]
+        return [.item]
     }
 
     struct ImportResult
@@ -54,7 +53,11 @@ enum KeroLibrary
             {
                 guard let system = KeroCores.system(for: url) else { throw KeroEngineError.unsupportedFile(url) }
 
-                let identifier = try KeroGameStorage.identifier(forROMAt: url)
+                // Files in iCloud Drive may not be downloaded yet; a coordinated read fetches them.
+                let localURL = try self.coordinatedCopy(of: url)
+                defer { try? FileManager.default.removeItem(at: localURL) }
+
+                let identifier = try KeroGameStorage.identifier(forROMAt: localURL)
 
                 let existing = FetchDescriptor<KeroGame>(predicate: #Predicate { $0.identifier == identifier })
                 if (try? context.fetchCount(existing)) ?? 0 > 0
@@ -67,7 +70,7 @@ enum KeroLibrary
                 let destination = self.gamesDirectory.appendingPathComponent(fileName)
                 if !FileManager.default.fileExists(atPath: destination.path)
                 {
-                    try FileManager.default.copyItem(at: url, to: destination)
+                    try FileManager.default.copyItem(at: localURL, to: destination)
                 }
 
                 let game = KeroGame(identifier: identifier, name: name, fileName: fileName, system: system)
@@ -82,6 +85,30 @@ enum KeroLibrary
 
         try? context.save()
         return result
+    }
+
+    /// Copies a (possibly cloud-only) file into a temporary location using NSFileCoordinator.
+    private static func coordinatedCopy(of url: URL) throws -> URL
+    {
+        let temporaryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension(url.pathExtension)
+
+        var coordinationError: NSError?
+        var copyError: Error?
+        NSFileCoordinator().coordinate(readingItemAt: url, options: [.withoutChanges], error: &coordinationError) { readURL in
+            do
+            {
+                try FileManager.default.copyItem(at: readURL, to: temporaryURL)
+            }
+            catch
+            {
+                copyError = error
+            }
+        }
+
+        if let error = coordinationError ?? copyError { throw error }
+        return temporaryURL
     }
 
     @MainActor

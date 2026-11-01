@@ -28,7 +28,7 @@ concurrency:
 jobs:
   upload:
     name: Archive & upload
-    runs-on: macos-26
+    runs-on: xcode-27  # Xcode 27.x / iOS 27.1 SDK: needed for the iPhone Duo inner display
     timeout-minutes: 90
     env:
       ENGINE_TOKEN: ${{ secrets.ENGINE_TOKEN }}

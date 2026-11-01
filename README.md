@@ -18,7 +18,7 @@ Systems: Game Boy, Game Boy Color, Game Boy Advance (more coming with Kero Engin
 
 ## Building
 
-Requirements: macOS with Xcode 16 or later, [XcodeGen](https://github.com/yonaskolb/XcodeGen),
+Requirements: macOS with Xcode 27.1 or later (iOS 27.1 SDK, so the app fills the iPhone Duo inner display), [XcodeGen](https://github.com/yonaskolb/XcodeGen),
 and access to the private `Jkeroromk/Kero-Engine` repository.
 
 ```bash
