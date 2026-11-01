@@ -38,6 +38,8 @@ jobs:
           XCODE="$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)"
           if [ -n "$XCODE" ]; then sudo xcode-select -s "$XCODE/Contents/Developer"; fi
           xcodebuild -version
+          # Xcode 27 ships the Metal toolchain separately; the engine's shaders need it.
+          xcodebuild -downloadComponent MetalToolchain || true
           xcodegen
 
       - name: Build
