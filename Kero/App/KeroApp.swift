@@ -37,6 +37,14 @@ struct RootView: View
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
 
+    @State private var foldMonitor = KeroFoldMonitor()
+    @AppStorage("foldedBehavior") private var foldedBehavior = "lid"
+    @AppStorage("lidColor") private var lidColor = KeroLidColor.graphite.rawValue
+
+    private var showsLid: Bool {
+        return self.foldMonitor.isFolded && self.foldedBehavior == "lid"
+    }
+
     var body: some View
     {
         @Bindable var appModel = self.appModel
@@ -52,6 +60,33 @@ struct RootView: View
                     .transition(.asymmetric(insertion: .scale(scale: 0.6).combined(with: .opacity),
                                             removal: .scale(scale: 0.6).combined(with: .opacity)))
                     .zIndex(1)
+            }
+
+            if self.showsLid
+            {
+                KeroLidView(color: KeroLidColor(rawValue: self.lidColor) ?? .graphite,
+                            gameName: appModel.session?.game.name)
+                    .transition(.opacity)
+                    .zIndex(10)
+            }
+        }
+        .background {
+            // Full-window size, to notice iPhone Duo moving between its inner and outer displays.
+            GeometryReader { geometry in
+                Color.clear
+                    .onAppear { self.foldMonitor.update(size: geometry.size) }
+                    .onChange(of: geometry.size) { _, size in self.foldMonitor.update(size: size) }
+            }
+            .ignoresSafeArea()
+        }
+        .onChange(of: self.showsLid) { _, closed in
+            if closed
+            {
+                appModel.session?.closeLid()
+            }
+            else
+            {
+                appModel.session?.openLid()
             }
         }
         .onAppear {

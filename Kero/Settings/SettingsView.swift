@@ -17,6 +17,8 @@ struct SettingsView: View
     @AppStorage("integerScaling") private var usesIntegerScaling = false
     @AppStorage("alwaysShowTouchControls") private var alwaysShowTouchControls = false
     @AppStorage("landscapeLayout") private var landscapeLayout = "console"
+    @AppStorage("foldedBehavior") private var foldedBehavior = "lid"
+    @AppStorage("lidColor") private var lidColor = KeroLidColor.graphite.rawValue
 
     var body: some View
     {
@@ -45,6 +47,25 @@ struct SettingsView: View
                     Text("Controls")
                 } footer: {
                     Text("Console keeps the controls beside the picture; Full Screen makes the picture bigger with controls on top of it. Touch controls hide automatically when a game controller is connected. Home button, or Menu + Options together, opens the pause menu. Hold the right trigger to fast-forward.")
+                }
+
+                Section {
+                    Picker("When Folded", selection: self.$foldedBehavior) {
+                        Text("Close the Lid").tag("lid")
+                        Text("Keep Playing").tag("play")
+                    }
+                    if self.foldedBehavior == "lid"
+                    {
+                        Picker("Lid Colour", selection: self.$lidColor) {
+                            ForEach(KeroLidColor.allCases) { color in
+                                Text(color.name).tag(color.rawValue)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("iPhone Duo")
+                } footer: {
+                    Text("Folding your iPhone closes Kero like a clamshell: the game pauses and picks up where you left off when you open it again.")
                 }
 
                 Section("Systems") {

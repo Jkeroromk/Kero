@@ -111,6 +111,27 @@ final class GameSession
         self.isMenuVisible = true
     }
 
+    /// iPhone Duo folded shut: pause, and remember whether to carry on when it opens.
+    @ObservationIgnored private var resumesWhenLidOpens = false
+
+    func closeLid()
+    {
+        guard self.emulator.state == .running else { return }
+        self.isFastForwarding = false
+        self.emulator.pause()
+        self.resumesWhenLidOpens = true
+    }
+
+    func openLid()
+    {
+        guard self.resumesWhenLidOpens else { return }
+        self.resumesWhenLidOpens = false
+        if !self.isMenuVisible
+        {
+            self.emulator.resume()
+        }
+    }
+
     // MARK: Menu
 
     func toggleMenu()
