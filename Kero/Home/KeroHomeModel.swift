@@ -22,6 +22,8 @@ protocol KeroHomeHost: AnyObject
     func showSettings()
     func confirmDelete(_ game: KeroGame)
     func rename(_ game: KeroGame)
+    func chooseCover(for game: KeroGame)
+    func removeCover(of game: KeroGame)
 }
 
 /// Which row has controller focus.

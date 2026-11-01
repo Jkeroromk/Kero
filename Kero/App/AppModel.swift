@@ -26,13 +26,14 @@ final class AppModel
     var isShowingSettings = false
     var gamePendingDeletion: KeroGame?
     var gamePendingRename: KeroGame?
+    var gamePendingCover: KeroGame?
     var renameText = ""
     var message: AppMessage?
 
     @ObservationIgnored var modelContext: ModelContext?
 
     var isShowingSheet: Bool {
-        return self.isShowingAddGames || self.isShowingSettings || self.gamePendingDeletion != nil || self.gamePendingRename != nil || self.message != nil
+        return self.isShowingAddGames || self.isShowingSettings || self.gamePendingDeletion != nil || self.gamePendingRename != nil || self.gamePendingCover != nil || self.message != nil
     }
 
     func returnHome()
@@ -90,6 +91,7 @@ final class AppModel
         guard !name.isEmpty, name != game.name else { return }
 
         game.name = name
+        game.isNameCustom = true
         try? self.modelContext?.save()
     }
 
@@ -166,6 +168,24 @@ extension AppModel: KeroHomeHost
     func confirmDelete(_ game: KeroGame)
     {
         self.gamePendingDeletion = game
+    }
+
+    func chooseCover(for game: KeroGame)
+    {
+        self.gamePendingCover = game
+    }
+
+    func removeCover(of game: KeroGame)
+    {
+        guard let modelContext else { return }
+        KeroCovers.removeCover(of: game, context: modelContext)
+    }
+
+    func setCover(_ data: Data)
+    {
+        guard let game = self.gamePendingCover, let modelContext else { return }
+        self.gamePendingCover = nil
+        KeroCovers.setCustomCover(data, for: game, context: modelContext)
     }
 
     func rename(_ game: KeroGame)

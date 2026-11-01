@@ -24,6 +24,21 @@ final class KeroGame
     var isFavorite: Bool
     var artworkFileName: String?
 
+    // Recognised from the game database (nil when the game isn't known).
+    var officialTitle: String?
+    var chineseTitle: String?
+    var region: String?
+    /// Comma-separated ISO 639-1 codes.
+    var languageCodes: String?
+    var serial: String?
+    var boxartName: String?
+    var isChineseTranslation: Bool = false
+    /// Cleaned-up file name, kept for fan translations named in Chinese and as a fallback.
+    var fileTitle: String?
+    /// Set when the user renames the game; automatic names never override it.
+    var isNameCustom: Bool = false
+    var metadataVersion: Int = 0
+
     init(identifier: String, name: String, fileName: String, system: KeroSystem)
     {
         self.identifier = identifier
@@ -43,6 +58,10 @@ final class KeroGame
 
     var romURL: URL {
         return KeroLibrary.gamesDirectory.appendingPathComponent(self.fileName)
+    }
+
+    var languages: [String] {
+        return (self.languageCodes ?? "").split(separator: ",").map(String.init)
     }
 
     var artworkURL: URL? {

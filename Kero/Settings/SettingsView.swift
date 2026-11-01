@@ -5,6 +5,7 @@
 //  Copyright (c) 2026 Zexin Zou. All rights reserved.
 //
 
+import SwiftData
 import SwiftUI
 
 import KeroEngine
@@ -18,6 +19,9 @@ struct SettingsView: View
     @AppStorage("alwaysShowTouchControls") private var alwaysShowTouchControls = false
     @AppStorage("landscapeLayout") private var landscapeLayout = "console"
     @AppStorage("foldedBehavior") private var foldedBehavior = "lid"
+    @AppStorage("gameNameLanguage") private var gameNameLanguage = "auto"
+    @AppStorage("downloadCovers") private var downloadCovers = true
+    @Environment(\.modelContext) private var modelContext
     @AppStorage("lidColor") private var lidColor = KeroLidColor.graphite.rawValue
 
     var body: some View
@@ -68,6 +72,26 @@ struct SettingsView: View
                     Text("Folding your iPhone closes Kero like a clamshell: the game pauses and picks up where you left off when you open it again.")
                 }
 
+                Section {
+                    Picker("Game Names", selection: self.$gameNameLanguage) {
+                        Text("Automatic").tag("auto")
+                        Text("中文").tag("zh")
+                        Text("English").tag("en")
+                    }
+                    Toggle("Download Covers", isOn: self.$downloadCovers)
+                } header: {
+                    Text("Library")
+                } footer: {
+                    Text("Kero recognises your games, including fan translations, and shows their official names. Covers come from the libretro thumbnail database; you can also choose your own from Photos by touching and holding a game.")
+                }
+                .onChange(of: self.gameNameLanguage) { _, _ in
+                    KeroLibrary.updateNames(in: self.modelContext)
+                }
+                .onChange(of: self.downloadCovers) { _, enabled in
+                    guard enabled, let games = try? self.modelContext.fetch(FetchDescriptor<KeroGame>()) else { return }
+                    KeroCovers.fetchMissing(for: games, context: self.modelContext)
+                }
+
                 Section("Systems") {
                     ForEach(KeroCores.supportedSystems, id: \.self) { system in
                         LabeledContent(system.name, value: system.fileExtensions.map { "." + $0 }.joined(separator: " "))
@@ -100,6 +124,11 @@ struct AcknowledgementsView: View
                     Text(Self.notice(for: core.id))
                         .font(.footnote)
                 }
+            }
+
+            Section("Game Information") {
+                Text("Game names, regions and languages come from No-Intro data via libretro-database (https://github.com/libretro/libretro-database), used under Creative Commons Attribution-ShareAlike 4.0. Kero's game database files are shared under the same license. Covers are downloaded from the libretro thumbnail server; cover art belongs to its respective publishers.")
+                    .font(.footnote)
             }
 
             Section("Kero") {

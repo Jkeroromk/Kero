@@ -75,6 +75,7 @@ enum KeroLibrary
         var name: String
         var system: KeroSystem
         var identifier: String
+        var info: KeroGameInfo?
     }
 
     /// Copies games into the library: single files, whole folders and zip archives.
@@ -113,8 +114,10 @@ enum KeroLibrary
                     try FileManager.default.moveItem(at: candidate.stagedURL, to: destination)
                 }
 
-                let displayName = KeroGameName.displayName(fileName: candidate.name, romURL: destination, system: candidate.system)
-                let game = KeroGame(identifier: identifier, name: displayName, fileName: fileName, system: candidate.system)
+                let fileTitle = KeroGameName.displayName(fileName: candidate.name, romURL: destination, system: candidate.system)
+                let game = KeroGame(identifier: identifier, name: fileTitle, fileName: fileName, system: candidate.system)
+                game.fileTitle = fileTitle
+                self.apply(candidate.info, to: game)
                 context.insert(game)
                 result.imported.append(game)
                 seen.insert(identifier)
@@ -126,7 +129,91 @@ enum KeroLibrary
         }
 
         try? context.save()
+
+        KeroCovers.fetchMissing(for: result.imported, context: context)
         return result
+    }
+
+    // MARK: Game info
+
+    static let metadataVersion = 1
+
+    /// Fills in what the database knows about a game and picks its display name.
+    @MainActor
+    static func apply(_ info: KeroGameInfo?, to game: KeroGame)
+    {
+        game.officialTitle = info?.title
+        game.chineseTitle = info?.chineseTitle
+        game.region = info?.region
+        game.languageCodes = info?.languages.joined(separator: ",")
+        game.serial = info?.serial
+        game.boxartName = info?.boxart
+        game.isChineseTranslation = info?.isChineseTranslation ?? false
+        game.metadataVersion = self.metadataVersion
+        self.updateName(of: game)
+    }
+
+    /// "zh" or "en", from Settings (Automatic follows the iPhone's language).
+    static var prefersChineseNames: Bool {
+        switch UserDefaults.standard.string(forKey: "gameNameLanguage") ?? "auto"
+        {
+        case "zh": return true
+        case "en": return false
+        default: return Locale.preferredLanguages.first?.hasPrefix("zh") ?? false
+        }
+    }
+
+    @MainActor
+    static func updateName(of game: KeroGame)
+    {
+        guard !game.isNameCustom else { return }
+
+        let fileTitle = game.fileTitle ?? game.name
+        let fileTitleIsChinese = KeroGameDatabase.containsCJK(fileTitle)
+
+        if self.prefersChineseNames
+        {
+            game.name = game.chineseTitle ?? (fileTitleIsChinese ? fileTitle : nil) ?? game.officialTitle ?? fileTitle
+        }
+        else
+        {
+            game.name = game.officialTitle ?? fileTitle
+        }
+    }
+
+    /// After the name language changes in Settings.
+    @MainActor
+    static func updateNames(in context: ModelContext)
+    {
+        guard let games = try? context.fetch(FetchDescriptor<KeroGame>()) else { return }
+        games.forEach { self.updateName(of: $0) }
+        try? context.save()
+    }
+
+    /// Recognises games imported before the database existed (or by an older version of it), once.
+    @MainActor
+    static func refreshMetadata(in context: ModelContext) async
+    {
+        guard let games = try? context.fetch(FetchDescriptor<KeroGame>()) else { return }
+        let stale = games.filter { $0.metadataVersion < self.metadataVersion }
+        guard !stale.isEmpty else {
+            KeroCovers.fetchMissing(for: games, context: context)
+            return
+        }
+
+        let jobs = stale.map { (identifier: $0.identifier, romURL: $0.romURL, name: $0.fileTitle ?? $0.name, system: $0.system) }
+        let infos = await Task.detached(priority: .utility) {
+            jobs.map { KeroGameDatabase.shared.info(sha1: $0.identifier, romURL: $0.romURL, fileName: $0.name, system: $0.system) }
+        }.value
+
+        for (game, info) in zip(stale, infos)
+        {
+            if game.fileTitle == nil { game.fileTitle = game.name }
+            self.apply(info, to: game)
+        }
+        try? context.save()
+
+        KeroCovers.fetchMissing(for: games, context: context)
     }
 
     // MARK: Staging (background)
@@ -158,7 +245,8 @@ enum KeroLibrary
                 {
                     let staged = try self.coordinatedCopy(of: url)
                     let identifier = try KeroGameStorage.identifier(forROMAt: staged)
-                    candidates.append(Candidate(stagedURL: staged, name: name, system: system, identifier: identifier))
+                    let info = KeroGameDatabase.shared.info(sha1: identifier, romURL: staged, fileName: name, system: system)
+                    candidates.append(Candidate(stagedURL: staged, name: name, system: system, identifier: identifier, info: info))
                 }
                 else if !quietIfUnsupported
                 {
@@ -225,7 +313,9 @@ enum KeroLibrary
             try archive.extract(entry, to: staged)
 
             let identifier = try KeroGameStorage.identifier(forROMAt: staged)
-            candidates.append(Candidate(stagedURL: staged, name: entryURL.deletingPathExtension().lastPathComponent, system: system, identifier: identifier))
+            let name = entryURL.deletingPathExtension().lastPathComponent
+            let info = KeroGameDatabase.shared.info(sha1: identifier, romURL: staged, fileName: name, system: system)
+            candidates.append(Candidate(stagedURL: staged, name: name, system: system, identifier: identifier, info: info))
         }
 
         return candidates

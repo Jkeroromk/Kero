@@ -1,0 +1,4 @@
+The *.tsv game database files in this folder (except names-zh.tsv and header-titles.tsv) are derived
+from No-Intro data in libretro-database (https://github.com/libretro/libretro-database) and are licensed
+under the Creative Commons Attribution-ShareAlike 4.0 International License
+(https://creativecommons.org/licenses/by-sa/4.0/). Built by Tools/metadata/build_gamedb.py.

@@ -1,0 +1,8 @@
+# GB/GBC ROM header title <TAB> English title (as in GameDB). Lets fan translations and hacks, which keep the
+# original header, still find their game when the file itself isn't in No-Intro.
+POKEMON RED	Pokémon Red Version
+POKEMON BLUE	Pokémon Blue Version
+POKEMON YELLOW	Pokémon Yellow Version: Special Pikachu Edition
+POKEMON_GLD	Pokémon Gold Version
+POKEMON_SLV	Pokémon Silver Version
+PM_CRYSTAL	Pokémon Crystal Version

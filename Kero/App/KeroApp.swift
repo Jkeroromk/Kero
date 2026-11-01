@@ -5,6 +5,7 @@
 //  Copyright (c) 2026 Zexin Zou. All rights reserved.
 //
 
+import PhotosUI
 import SwiftData
 import SwiftUI
 import UIKit
@@ -38,6 +39,7 @@ struct RootView: View
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var foldMonitor = KeroFoldMonitor()
+    @State private var coverSelection: PhotosPickerItem?
     @AppStorage("foldedBehavior") private var foldedBehavior = "lid"
     @AppStorage("lidColor") private var lidColor = KeroLidColor.graphite.rawValue
 
@@ -92,6 +94,7 @@ struct RootView: View
         .onAppear {
             appModel.modelContext = self.modelContext
             KeroLibrary.tidyNames(in: self.modelContext)
+            Task { await KeroLibrary.refreshMetadata(in: self.modelContext) }
         }
         .sheet(isPresented: $appModel.isShowingAddGames) {
             KeroAddGamesView()
@@ -107,6 +110,24 @@ struct RootView: View
             Button("Cancel", role: .cancel) { appModel.gamePendingDeletion = nil }
         } message: {
             Text("The game file is removed. Its saves stay on this iPhone and come back if you import the same game again.")
+        }
+        .photosPicker(isPresented: Binding(get: { appModel.gamePendingCover != nil },
+                                           set: { if !$0 && self.coverSelection == nil { appModel.gamePendingCover = nil } }),
+                      selection: self.$coverSelection,
+                      matching: .images)
+        .onChange(of: self.coverSelection) { _, item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self)
+                {
+                    appModel.setCover(data)
+                }
+                else
+                {
+                    appModel.gamePendingCover = nil
+                }
+                self.coverSelection = nil
+            }
         }
         .alert("Rename Game",
                isPresented: Binding(get: { appModel.gamePendingRename != nil },

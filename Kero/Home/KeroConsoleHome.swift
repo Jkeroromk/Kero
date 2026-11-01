@@ -249,6 +249,15 @@ private struct KeroGameRow: View
                                 Button { self.model.host?.rename(game) } label: {
                                     Label("Rename", systemImage: "pencil")
                                 }
+                                Button { self.model.host?.chooseCover(for: game) } label: {
+                                    Label("Choose Cover", systemImage: "photo")
+                                }
+                                if game.artworkFileName != nil
+                                {
+                                    Button { self.model.host?.removeCover(of: game) } label: {
+                                        Label("Remove Cover", systemImage: "photo.badge.minus")
+                                    }
+                                }
                                 Button(role: .destructive) { self.model.perform(.delete, for: game) } label: {
                                     Label("Delete", systemImage: "trash")
                                 }
@@ -359,6 +368,22 @@ private struct KeroGameDetails: View
 
     private var subtitle: String {
         var parts = [self.game.system.name]
+
+        if let region = self.game.region, !region.isEmpty
+        {
+            parts.append(region)
+        }
+
+        if self.game.isChineseTranslation
+        {
+            parts.append("Chinese (fan translation)")
+        }
+        else if !self.game.languages.isEmpty
+        {
+            let names = self.game.languages.compactMap { Locale.current.localizedString(forLanguageCode: $0) }
+            let shown = names.prefix(3).joined(separator: ", ")
+            parts.append(names.count > 3 ? shown + " +\(names.count - 3)" : shown)
+        }
 
         if let playedDate = self.game.playedDate
         {
