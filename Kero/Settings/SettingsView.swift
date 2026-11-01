@@ -16,6 +16,7 @@ struct SettingsView: View
     @AppStorage("videoFilter") private var filterRawValue = KeroVideoFilter.sharp.rawValue
     @AppStorage("integerScaling") private var usesIntegerScaling = false
     @AppStorage("alwaysShowTouchControls") private var alwaysShowTouchControls = false
+    @AppStorage("landscapeLayout") private var landscapeLayout = "console"
 
     var body: some View
     {
@@ -35,11 +36,15 @@ struct SettingsView: View
                 }
 
                 Section {
+                    Picker("Landscape Layout", selection: self.$landscapeLayout) {
+                        Text("Console").tag("console")
+                        Text("Full Screen").tag("fullscreen")
+                    }
                     Toggle("Always Show Touch Controls", isOn: self.$alwaysShowTouchControls)
                 } header: {
                     Text("Controls")
                 } footer: {
-                    Text("Touch controls hide automatically when a game controller is connected. Home button, or Menu + Options together, opens the pause menu. Hold the right trigger to fast-forward.")
+                    Text("Console keeps the controls beside the picture; Full Screen makes the picture bigger with controls on top of it. Touch controls hide automatically when a game controller is connected. Home button, or Menu + Options together, opens the pause menu. Hold the right trigger to fast-forward.")
                 }
 
                 Section("Systems") {

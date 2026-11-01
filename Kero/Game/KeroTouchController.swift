@@ -6,7 +6,7 @@
 //
 //  On-screen controller built on raw UIKit multitouch (not SwiftUI gestures), so presses
 //  register immediately, several buttons can be held at once, and a thumb can slide
-//  across the D-pad or between A and B.
+//  across the D-pad or between A and B. Positions come from KeroConsoleLayout.
 //
 
 import SwiftUI
@@ -16,30 +16,22 @@ import KeroEngine
 
 struct KeroTouchController: UIViewRepresentable
 {
-    enum Layout
-    {
-        /// Controls fill the area below the game screen.
-        case portrait
-        /// Controls float over the edges of a full-screen game.
-        case landscape
-    }
-
+    var layout: KeroConsoleLayout
     var system: KeroSystem
-    var layout: Layout
     var onChange: (KeroButtons) -> Void
 
     func makeUIView(context: Context) -> KeroTouchControllerView
     {
         let view = KeroTouchControllerView()
         view.buttonsChanged = self.onChange
-        view.configure(system: self.system, layout: self.layout)
+        view.configure(layout: self.layout, system: self.system)
         return view
     }
 
     func updateUIView(_ view: KeroTouchControllerView, context: Context)
     {
         view.buttonsChanged = self.onChange
-        view.configure(system: self.system, layout: self.layout)
+        view.configure(layout: self.layout, system: self.system)
     }
 
     static func dismantleUIView(_ view: KeroTouchControllerView, coordinator: ())
@@ -55,7 +47,7 @@ final class KeroTouchControllerView: UIView
     private enum Kind: Equatable
     {
         case dpad
-        case button(KeroButtons, label: String, shape: Shape)
+        case button(KeroButtons, shape: Shape)
     }
 
     private enum Shape: Equatable
@@ -74,8 +66,8 @@ final class KeroTouchControllerView: UIView
         var highlight: CALayer
     }
 
+    private var layout = KeroConsoleLayout(style: .screenOnly, size: .zero)
     private var system: KeroSystem = .gameBoyAdvance
-    private var layout: KeroTouchController.Layout = .portrait
     private var controls: [Control] = []
     private var dpadArmLayers: [KeroButtons: CALayer] = [:]
 
@@ -101,13 +93,13 @@ final class KeroTouchControllerView: UIView
         fatalError("init(coder:) has not been implemented")
     }
 
-    func configure(system: KeroSystem, layout: KeroTouchController.Layout)
+    func configure(layout: KeroConsoleLayout, system: KeroSystem)
     {
-        guard system != self.system || layout != self.layout || self.controls.isEmpty else { return }
+        guard layout != self.layout || system != self.system else { return }
 
-        self.system = system
         self.layout = layout
-        self.setNeedsLayout()
+        self.system = system
+        self.rebuildControls()
     }
 
     func releaseAll()
@@ -120,21 +112,26 @@ final class KeroTouchControllerView: UIView
 
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool
     {
-        // In landscape the view covers the game; only the controls themselves take touches.
-        guard self.layout == .landscape else { return super.point(inside: point, with: event) }
+        // Only the controls take touches; everything else (home button, picture) passes through.
         return self.controls.contains { $0.hitFrame.contains(point) }
     }
 
-    // MARK: Layout & skin
+    // MARK: Skin
 
-    override func layoutSubviews()
-    {
-        super.layoutSubviews()
-        self.rebuildControls()
-    }
+    private var isOverlay: Bool { self.layout.style == .overlay }
 
-    private var hasShoulders: Bool {
-        return self.system == .gameBoyAdvance || self.system == .snes
+    private var faceColors: (top: UIColor, bottom: UIColor) {
+        switch self.system
+        {
+        case .gameBoy, .gameBoyColor:
+            return (UIColor(red: 0.62, green: 0.20, blue: 0.40, alpha: 1), UIColor(red: 0.42, green: 0.11, blue: 0.27, alpha: 1))
+        case .nes:
+            return (UIColor(red: 0.66, green: 0.20, blue: 0.20, alpha: 1), UIColor(red: 0.45, green: 0.12, blue: 0.12, alpha: 1))
+        case .snes:
+            return (UIColor(red: 0.48, green: 0.44, blue: 0.66, alpha: 1), UIColor(red: 0.32, green: 0.29, blue: 0.48, alpha: 1))
+        default:
+            return (UIColor(white: 0.32, alpha: 1), UIColor(white: 0.17, alpha: 1))
+        }
     }
 
     private func rebuildControls()
@@ -147,82 +144,71 @@ final class KeroTouchControllerView: UIView
         self.controls.removeAll()
         self.dpadArmLayers.removeAll()
 
-        let bounds = self.bounds.inset(by: self.layout == .landscape ? self.safeAreaInsets : .zero)
-        guard bounds.width > 50, bounds.height > 50 else { return }
+        guard self.layout.hasControls else { return }
 
-        let opacity: Float = self.layout == .landscape ? 0.6 : 1.0
+        let opacity: Float = self.isOverlay ? 0.55 : 1.0
 
-        switch self.layout
+        if !self.isOverlay
         {
-        case .portrait:
-            let margin = max(18, bounds.width * 0.06)
-            let dpadSize = min(bounds.width * 0.40, bounds.height * 0.52, 176)
-            let faceSize = dpadSize * 0.40
-            let centerY = bounds.minY + bounds.height * (self.hasShoulders ? 0.47 : 0.42)
-
-            if self.hasShoulders
-            {
-                let shoulder = CGSize(width: min(110, bounds.width * 0.26), height: 38)
-                self.addButton(.l, "L", .shoulder, CGRect(x: bounds.minX + margin, y: bounds.minY + 8, width: shoulder.width, height: shoulder.height), opacity)
-                self.addButton(.r, "R", .shoulder, CGRect(x: bounds.maxX - margin - shoulder.width, y: bounds.minY + 8, width: shoulder.width, height: shoulder.height), opacity)
-            }
-
-            self.addDPad(CGRect(x: bounds.minX + margin, y: centerY - dpadSize / 2, width: dpadSize, height: dpadSize), opacity)
-
-            let aCenter = CGPoint(x: bounds.maxX - margin - faceSize / 2, y: centerY - faceSize * 0.38)
-            let bCenter = CGPoint(x: aCenter.x - faceSize * 1.22, y: centerY + faceSize * 0.38)
-            self.addButton(.b, "B", .circle, CGRect(x: bCenter.x - faceSize / 2, y: bCenter.y - faceSize / 2, width: faceSize, height: faceSize), opacity)
-            self.addButton(.a, "A", .circle, CGRect(x: aCenter.x - faceSize / 2, y: aCenter.y - faceSize / 2, width: faceSize, height: faceSize), opacity)
-
-            let pill = CGSize(width: 70, height: 28)
-            let pillY = min(bounds.maxY - pill.height - 16, centerY + dpadSize / 2 + 24)
-            self.addButton(.select, "SELECT", .pill, CGRect(x: bounds.midX - pill.width - 12, y: pillY, width: pill.width, height: pill.height), opacity)
-            self.addButton(.start, "START", .pill, CGRect(x: bounds.midX + 12, y: pillY, width: pill.width, height: pill.height), opacity)
-
-        case .landscape:
-            let margin: CGFloat = 20
-            let dpadSize = min(bounds.height * 0.42, 168)
-            let faceSize = dpadSize * 0.40
-            let bottom = bounds.maxY - 16
-
-            if self.hasShoulders
-            {
-                let shoulder = CGSize(width: 100, height: 36)
-                self.addButton(.l, "L", .shoulder, CGRect(x: bounds.minX + margin, y: bounds.minY + 12, width: shoulder.width, height: shoulder.height), opacity)
-                self.addButton(.r, "R", .shoulder, CGRect(x: bounds.maxX - margin - shoulder.width, y: bounds.minY + 12, width: shoulder.width, height: shoulder.height), opacity)
-            }
-
-            let dpadFrame = CGRect(x: bounds.minX + margin, y: bottom - 40 - dpadSize, width: dpadSize, height: dpadSize)
-            self.addDPad(dpadFrame, opacity)
-
-            let centerY = dpadFrame.midY
-            let aCenter = CGPoint(x: bounds.maxX - margin - faceSize / 2, y: centerY - faceSize * 0.38)
-            let bCenter = CGPoint(x: aCenter.x - faceSize * 1.22, y: centerY + faceSize * 0.38)
-            self.addButton(.b, "B", .circle, CGRect(x: bCenter.x - faceSize / 2, y: bCenter.y - faceSize / 2, width: faceSize, height: faceSize), opacity)
-            self.addButton(.a, "A", .circle, CGRect(x: aCenter.x - faceSize / 2, y: aCenter.y - faceSize / 2, width: faceSize, height: faceSize), opacity)
-
-            let pill = CGSize(width: 64, height: 26)
-            self.addButton(.select, "SELECT", .pill, CGRect(x: dpadFrame.midX - pill.width / 2, y: bottom - pill.height, width: pill.width, height: pill.height), opacity)
-            self.addButton(.start, "START", .pill, CGRect(x: (aCenter.x + bCenter.x) / 2 - pill.width / 2, y: bottom - pill.height, width: pill.width, height: pill.height), opacity)
+            self.addWells()
         }
+
+        if !self.layout.l.isEmpty { self.addButton(.l, "L", .shoulder, self.layout.l, opacity) }
+        if !self.layout.r.isEmpty { self.addButton(.r, "R", .shoulder, self.layout.r, opacity) }
+        self.addDPad(self.layout.dpad, opacity)
+        self.addButton(.b, "B", .circle, self.layout.b, opacity)
+        self.addButton(.a, "A", .circle, self.layout.a, opacity)
+        self.addButton(.select, "SELECT", .pill, self.layout.select, opacity)
+        self.addButton(.start, "START", .pill, self.layout.start, opacity)
 
         self.applyPressedState()
     }
 
+    /// Recessed areas the D-pad and face buttons sit in, like a real console shell.
+    private func addWells()
+    {
+        let dpadWell = CAShapeLayer()
+        let dpadRect = self.layout.dpad.insetBy(dx: -self.layout.dpad.width * 0.07, dy: -self.layout.dpad.height * 0.07)
+        dpadWell.path = UIBezierPath(ovalIn: dpadRect).cgPath
+        dpadWell.fillColor = UIColor(white: 0, alpha: 0.28).cgColor
+        dpadWell.strokeColor = UIColor(white: 1, alpha: 0.05).cgColor
+        dpadWell.lineWidth = 1
+        self.layer.addSublayer(dpadWell)
+
+        // A capsule along the line from B to A.
+        let a = CGPoint(x: self.layout.a.midX, y: self.layout.a.midY)
+        let b = CGPoint(x: self.layout.b.midX, y: self.layout.b.midY)
+        let size = self.layout.a.width
+        let length = hypot(a.x - b.x, a.y - b.y) + size * 1.28
+        let thickness = size * 1.28
+
+        let faceWell = CAShapeLayer()
+        faceWell.bounds = CGRect(x: 0, y: 0, width: length, height: thickness)
+        faceWell.position = CGPoint(x: (a.x + b.x) / 2, y: (a.y + b.y) / 2)
+        faceWell.path = UIBezierPath(roundedRect: faceWell.bounds, cornerRadius: thickness / 2).cgPath
+        faceWell.fillColor = UIColor(white: 0, alpha: 0.28).cgColor
+        faceWell.strokeColor = UIColor(white: 1, alpha: 0.05).cgColor
+        faceWell.lineWidth = 1
+        faceWell.setAffineTransform(CGAffineTransform(rotationAngle: atan2(a.y - b.y, a.x - b.x)))
+        self.layer.addSublayer(faceWell)
+    }
+
     private func addDPad(_ frame: CGRect, _ opacity: Float)
     {
+        guard frame.width > 0 else { return }
+
         let container = CALayer()
         container.frame = frame
         container.opacity = opacity
 
         let arm = frame.width / 3
         let crossPath = UIBezierPath()
-        crossPath.append(UIBezierPath(roundedRect: CGRect(x: arm, y: 0, width: arm, height: frame.height), cornerRadius: arm * 0.22))
-        crossPath.append(UIBezierPath(roundedRect: CGRect(x: 0, y: arm, width: frame.width, height: arm), cornerRadius: arm * 0.22))
+        crossPath.append(UIBezierPath(roundedRect: CGRect(x: arm, y: 0, width: arm, height: frame.height), cornerRadius: arm * 0.2))
+        crossPath.append(UIBezierPath(roundedRect: CGRect(x: 0, y: arm, width: frame.width, height: arm), cornerRadius: arm * 0.2))
 
         let fill = CAGradientLayer()
         fill.frame = container.bounds
-        fill.colors = [UIColor(white: 0.30, alpha: 1).cgColor, UIColor(white: 0.16, alpha: 1).cgColor]
+        fill.colors = [UIColor(white: 0.24, alpha: 1).cgColor, UIColor(white: 0.12, alpha: 1).cgColor]
         let mask = CAShapeLayer()
         mask.path = crossPath.cgPath
         fill.mask = mask
@@ -231,17 +217,16 @@ final class KeroTouchControllerView: UIView
         let outline = CAShapeLayer()
         outline.path = crossPath.cgPath
         outline.fillColor = nil
-        outline.strokeColor = UIColor(white: 1, alpha: 0.14).cgColor
+        outline.strokeColor = UIColor(white: 1, alpha: 0.12).cgColor
         outline.lineWidth = 1
         container.addSublayer(outline)
 
         // Centre dimple
         let dimple = CAShapeLayer()
-        dimple.path = UIBezierPath(ovalIn: CGRect(x: frame.width / 2 - arm * 0.22, y: frame.height / 2 - arm * 0.22, width: arm * 0.44, height: arm * 0.44)).cgPath
-        dimple.fillColor = UIColor(white: 0.08, alpha: 0.8).cgColor
+        dimple.path = UIBezierPath(ovalIn: CGRect(x: frame.width / 2 - arm * 0.24, y: frame.height / 2 - arm * 0.24, width: arm * 0.48, height: arm * 0.48)).cgPath
+        dimple.fillColor = UIColor(white: 0.06, alpha: 0.9).cgColor
         container.addSublayer(dimple)
 
-        // Arms: highlight + arrow per direction.
         let arms: [(KeroButtons, CGRect, CGFloat)] = [
             (.up, CGRect(x: arm, y: 0, width: arm, height: arm), 0),
             (.down, CGRect(x: arm, y: arm * 2, width: arm, height: arm), .pi),
@@ -252,13 +237,13 @@ final class KeroTouchControllerView: UIView
         for (button, rect, angle) in arms
         {
             let highlight = CAShapeLayer()
-            highlight.path = UIBezierPath(roundedRect: rect, cornerRadius: arm * 0.22).cgPath
-            highlight.fillColor = UIColor(white: 1, alpha: 0.22).cgColor
+            highlight.path = UIBezierPath(roundedRect: rect, cornerRadius: arm * 0.2).cgPath
+            highlight.fillColor = UIColor(white: 1, alpha: 0.2).cgColor
             highlight.opacity = 0
             container.addSublayer(highlight)
             self.dpadArmLayers[button] = highlight
 
-            let arrowSize = arm * 0.28
+            let arrowSize = arm * 0.26
             let arrow = CAShapeLayer()
             let path = UIBezierPath()
             path.move(to: CGPoint(x: 0, y: -arrowSize / 2))
@@ -266,16 +251,16 @@ final class KeroTouchControllerView: UIView
             path.addLine(to: CGPoint(x: -arrowSize / 2, y: arrowSize / 2))
             path.close()
             arrow.path = path.cgPath
-            arrow.fillColor = UIColor(white: 1, alpha: 0.45).cgColor
+            arrow.fillColor = UIColor(white: 1, alpha: 0.35).cgColor
             arrow.position = CGPoint(x: rect.midX, y: rect.midY)
             arrow.setAffineTransform(CGAffineTransform(rotationAngle: angle))
             container.addSublayer(arrow)
         }
 
         container.shadowColor = UIColor.black.cgColor
-        container.shadowOpacity = 0.45
-        container.shadowRadius = 8
-        container.shadowOffset = CGSize(width: 0, height: 4)
+        container.shadowOpacity = 0.5
+        container.shadowRadius = 6
+        container.shadowOffset = CGSize(width: 0, height: 3)
         container.shadowPath = crossPath.cgPath
 
         self.layer.addSublayer(container)
@@ -286,6 +271,8 @@ final class KeroTouchControllerView: UIView
 
     private func addButton(_ button: KeroButtons, _ label: String, _ shape: Shape, _ frame: CGRect, _ opacity: Float)
     {
+        guard frame.width > 0 else { return }
+
         let container = CALayer()
         container.frame = frame
         container.opacity = opacity
@@ -295,52 +282,58 @@ final class KeroTouchControllerView: UIView
         {
         case .circle: path = UIBezierPath(ovalIn: container.bounds)
         case .pill: path = UIBezierPath(roundedRect: container.bounds, cornerRadius: frame.height / 2)
-        case .shoulder: path = UIBezierPath(roundedRect: container.bounds, cornerRadius: frame.height * 0.35)
+        case .shoulder: path = UIBezierPath(roundedRect: container.bounds, cornerRadius: frame.height * 0.4)
         }
 
         let fill = CAGradientLayer()
         fill.frame = container.bounds
-        fill.colors = shape == .circle
-            ? [UIColor(white: 0.34, alpha: 1).cgColor, UIColor(white: 0.18, alpha: 1).cgColor]
-            : [UIColor(white: 0.26, alpha: 1).cgColor, UIColor(white: 0.16, alpha: 1).cgColor]
+        switch shape
+        {
+        case .circle:
+            let colors = self.faceColors
+            fill.colors = [colors.top.cgColor, colors.bottom.cgColor]
+        case .pill, .shoulder:
+            fill.colors = [UIColor(white: 0.22, alpha: 1).cgColor, UIColor(white: 0.12, alpha: 1).cgColor]
+        }
         let mask = CAShapeLayer()
         mask.path = path.cgPath
         fill.mask = mask
         container.addSublayer(fill)
 
-        let outline = CAShapeLayer()
-        outline.path = path.cgPath
-        outline.fillColor = nil
-        outline.strokeColor = UIColor(white: 1, alpha: 0.15).cgColor
-        outline.lineWidth = 1
-        container.addSublayer(outline)
+        // Top rim light so buttons read as raised.
+        let rim = CAShapeLayer()
+        rim.path = path.cgPath
+        rim.fillColor = nil
+        rim.strokeColor = UIColor(white: 1, alpha: 0.14).cgColor
+        rim.lineWidth = 1
+        container.addSublayer(rim)
 
         let highlight = CAShapeLayer()
         highlight.path = path.cgPath
-        highlight.fillColor = UIColor(white: 1, alpha: 0.25).cgColor
+        highlight.fillColor = UIColor(white: 1, alpha: 0.22).cgColor
         highlight.opacity = 0
         container.addSublayer(highlight)
 
         let text = CATextLayer()
         text.string = label
-        text.contentsScale = UIScreen.main.scale
+        text.contentsScale = self.traitCollection.displayScale > 0 ? self.traitCollection.displayScale : 3
         text.alignmentMode = .center
         let fontSize: CGFloat
         switch shape
         {
         case .circle: fontSize = frame.height * 0.36
         case .pill: fontSize = 10
-        case .shoulder: fontSize = 16
+        case .shoulder: fontSize = 15
         }
         text.font = UIFont.systemFont(ofSize: fontSize, weight: .bold)
         text.fontSize = fontSize
-        text.foregroundColor = UIColor(white: 1, alpha: 0.8).cgColor
+        text.foregroundColor = UIColor(white: 1, alpha: 0.78).cgColor
         text.frame = CGRect(x: 0, y: (frame.height - fontSize * 1.25) / 2, width: frame.width, height: fontSize * 1.3)
         container.addSublayer(text)
 
         container.shadowColor = UIColor.black.cgColor
-        container.shadowOpacity = 0.45
-        container.shadowRadius = 6
+        container.shadowOpacity = 0.5
+        container.shadowRadius = 5
         container.shadowOffset = CGSize(width: 0, height: 3)
         container.shadowPath = path.cgPath
 
@@ -356,7 +349,7 @@ final class KeroTouchControllerView: UIView
         }
         let hitFrame = frame.insetBy(dx: -expansion, dy: -expansion)
 
-        self.controls.append(Control(kind: .button(button, label: label, shape: shape), frame: frame, hitFrame: hitFrame, layer: container, highlight: highlight))
+        self.controls.append(Control(kind: .button(button, shape: shape), frame: frame, hitFrame: hitFrame, layer: container, highlight: highlight))
     }
 
     // MARK: Touches
@@ -403,7 +396,7 @@ final class KeroTouchControllerView: UIView
             {
             case .dpad:
                 result.formUnion(self.directions(at: point, in: control.frame))
-            case .button(let button, _, let shape):
+            case .button(let button, let shape):
                 if shape == .circle
                 {
                     // Circular hit area (expanded), so the corners of the square don't count.
@@ -476,7 +469,7 @@ final class KeroTouchControllerView: UIView
 
         for control in self.controls
         {
-            if case .button(let button, _, _) = control.kind
+            if case .button(let button, _) = control.kind
             {
                 let pressed = self.current.contains(button)
                 control.highlight.opacity = pressed ? 1 : 0

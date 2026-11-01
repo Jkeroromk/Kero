@@ -19,6 +19,7 @@ struct GameView: View
     @AppStorage("videoFilter") private var filterRawValue = KeroVideoFilter.sharp.rawValue
     @AppStorage("integerScaling") private var usesIntegerScaling = false
     @AppStorage("alwaysShowTouchControls") private var alwaysShowTouchControls = false
+    @AppStorage("landscapeLayout") private var landscapeLayout = "console"
 
     private var filter: KeroVideoFilter {
         KeroVideoFilter(rawValue: self.filterRawValue) ?? .sharp
@@ -31,58 +32,45 @@ struct GameView: View
     var body: some View
     {
         GeometryReader { geometry in
-            let isLandscape = geometry.size.width > geometry.size.height
+            let insets = geometry.safeAreaInsets
+            let layout = self.layout(size: geometry.size, insets: insets)
 
-            ZStack {
-                Color.black.ignoresSafeArea()
-
-                if isLandscape
+            ZStack(alignment: .topLeading) {
+                if layout.hasShell
                 {
-                    self.screen
-                        .ignoresSafeArea()
-
-                    if self.showsTouchControls
-                    {
-                        KeroTouchController(system: self.session.game.system, layout: .landscape, onChange: { self.session.input.touchButtons = $0 })
-                            .ignoresSafeArea()
-                    }
+                    KeroConsoleShell(layout: layout, system: self.session.game.system, isRunning: !self.session.isMenuVisible)
                 }
                 else
                 {
-                    VStack(spacing: 0) {
-                        self.screen
-                            .aspectRatio(self.session.videoAspectRatio, contentMode: .fit)
-                            .frame(maxWidth: .infinity)
-
-                        if self.showsTouchControls
-                        {
-                            KeroTouchController(system: self.session.game.system, layout: .portrait, onChange: { self.session.input.touchButtons = $0 })
-                                .frame(maxWidth: 560)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        }
-                        else
-                        {
-                            Spacer(minLength: 0)
-                        }
-                    }
+                    Color.black
                 }
 
-                self.menuButton
-                    // Landscape: top centre, clear of the L/R shoulder buttons.
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: isLandscape ? .top : .topTrailing)
-                    .padding(.top, isLandscape ? 8 : 0)
-                    .padding(.trailing, isLandscape ? 0 : 12)
+                self.screen
+                    .frame(width: layout.screen.width, height: layout.screen.height)
+                    .position(x: layout.screen.midX, y: layout.screen.midY)
+
+                if layout.hasControls
+                {
+                    KeroTouchController(layout: layout, system: self.session.game.system, onChange: { self.session.input.touchButtons = $0 })
+                        .frame(width: layout.size.width, height: layout.size.height)
+                }
+
+                KeroHomeButton(isOverlay: !layout.hasShell) {
+                    self.session.toggleMenu()
+                }
+                .frame(width: layout.menu.width, height: layout.menu.height)
+                .position(x: layout.menu.midX, y: layout.menu.midY)
 
                 if self.session.isFastForwarding
                 {
                     Label("4×", systemImage: "forward.fill")
-                        .font(.system(size: 13, weight: .heavy, design: .rounded))
+                        .font(.system(size: 12, weight: .heavy, design: .rounded))
                         .foregroundStyle(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(.ultraThinMaterial, in: Capsule())
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                        .padding(12)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 4)
+                        .background(.black.opacity(0.55), in: Capsule())
+                        .fixedSize()
+                        .position(x: layout.screen.minX + 36, y: layout.screen.minY + 20)
                 }
 
                 if let toast = self.session.toast
@@ -93,39 +81,50 @@ struct GameView: View
                         .padding(.horizontal, 16)
                         .padding(.vertical, 9)
                         .background(.ultraThinMaterial, in: Capsule())
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                        .padding(.top, 16)
+                        .fixedSize()
+                        .position(x: layout.screen.midX, y: layout.screen.minY + 30)
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
                 if self.session.isMenuVisible
                 {
                     PauseMenu(session: self.session, onHome: self.onHome, onQuit: self.onQuit)
+                        .frame(width: layout.size.width, height: layout.size.height)
                         .transition(.opacity.combined(with: .scale(scale: 1.04)))
                         .zIndex(1)
                 }
             }
+            .frame(width: geometry.size.width, height: geometry.size.height)
         }
+        .ignoresSafeArea()
         .statusBarHidden(true)
         .persistentSystemOverlays(.hidden)
         .defersSystemGestures(on: .all)
     }
 
-    private var screen: some View {
-        KeroGameScreen(emulator: self.session.emulator, filter: self.filter, usesIntegerScaling: self.usesIntegerScaling)
+    /// `size` is the whole screen (safe areas ignored); `insets` are the safe areas to keep clear.
+    private func layout(size: CGSize, insets: EdgeInsets) -> KeroConsoleLayout
+    {
+        let style: KeroConsoleLayout.Style
+        if !self.showsTouchControls
+        {
+            style = .screenOnly
+        }
+        else if size.width > size.height
+        {
+            style = self.landscapeLayout == "fullscreen" ? .overlay : .landscape
+        }
+        else
+        {
+            style = .portrait
+        }
+
+        return KeroConsoleLayout.make(style: style, size: size, insets: insets,
+                                      aspect: self.session.videoAspectRatio, system: self.session.game.system)
     }
 
-    private var menuButton: some View {
-        Button {
-            self.session.toggleMenu()
-        } label: {
-            Image(systemName: "pause.fill")
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(.white.opacity(0.85))
-                .frame(width: 40, height: 40)
-                .background(.ultraThinMaterial.opacity(0.7), in: Circle())
-        }
-        .accessibilityLabel("Pause")
+    private var screen: some View {
+        KeroGameScreen(emulator: self.session.emulator, filter: self.filter, usesIntegerScaling: self.usesIntegerScaling)
     }
 }
 
