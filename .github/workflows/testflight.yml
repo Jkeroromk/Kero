@@ -141,9 +141,13 @@ jobs:
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             > build/export.log 2>&1 || true
-          ERRORS="$(grep -iE "error" build/export.log | sort -u | head -40 | awk '{printf "%s%%0A", $0}')"
-          if [ -n "$ERRORS" ]; then echo "::error title=Export errors::$ERRORS"; fi
-          ls build/export/*.ipa >/dev/null 2>&1 || { tail -60 build/export.log; exit 1; }
+          # Xcode logs a harmless "store configuration" auth warning here; only fail if no .ipa came out.
+          if ! ls build/export/*.ipa >/dev/null 2>&1; then
+            ERRORS="$(grep -iE "error" build/export.log | sort -u | head -40 | awk '{printf "%s%%0A", $0}')"
+            echo "::error title=Export errors::$ERRORS"
+            tail -60 build/export.log
+            exit 1
+          fi
 
       - name: Upload to App Store Connect
         run: |
