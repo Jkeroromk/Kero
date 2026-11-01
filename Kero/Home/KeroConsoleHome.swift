@@ -9,6 +9,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 import KeroEngine
 
@@ -63,6 +64,7 @@ struct KeroConsoleHome: View
             }
         }
         .preferredColorScheme(.dark)
+        .onAppear { UIDevice.current.isBatteryMonitoringEnabled = true }
         .statusBarHidden(true)
         .persistentSystemOverlays(.hidden)
     }
