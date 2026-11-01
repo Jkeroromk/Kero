@@ -2,145 +2,83 @@
 //  KeroTheme.swift
 //  Kero
 //
-//  Visual language for the Kero home screen: a bright, glossy,
-//  "Aero"-style look (sky gradients, glass, bubbles) designed from scratch.
-//
 //  Copyright (c) 2026 Zexin Zou. All rights reserved.
+//
+//  Console-style visual language: dark, quiet surfaces; the game art provides the color.
 //
 
 import SwiftUI
+import UIKit
 
 import KeroEngine
 
 enum KeroTheme
 {
-    // MARK: Palette
+    // MARK: Colors
 
-    struct Palette
-    {
-        var skyTop: Color
-        var skyMiddle: Color
-        var skyBottom: Color
-        var ribbon: Color
-        var glassFill: Color
-        var glassStroke: Color
-        var text: Color
-        var secondaryText: Color
-        var focusGlow: Color
-    }
+    static let background = Color(red: 0.035, green: 0.04, blue: 0.055)
+    static let surface = Color.white.opacity(0.06)
+    static let surfaceHighlight = Color.white.opacity(0.12)
+    static let stroke = Color.white.opacity(0.10)
+    static let primaryText = Color.white
+    static let secondaryText = Color.white.opacity(0.62)
+    static let tertiaryText = Color.white.opacity(0.38)
+    static let focus = Color.white
+    static let accent = Color(red: 0.24, green: 0.56, blue: 1.0)
 
-    static let day = Palette(skyTop: Color(red: 0.02, green: 0.42, blue: 0.86),
-                             skyMiddle: Color(red: 0.20, green: 0.68, blue: 0.96),
-                             skyBottom: Color(red: 0.55, green: 0.86, blue: 1.00),
-                             ribbon: .white,
-                             glassFill: Color.white.opacity(0.22),
-                             glassStroke: Color.white.opacity(0.55),
-                             text: .white,
-                             secondaryText: Color.white.opacity(0.82),
-                             focusGlow: Color(red: 0.55, green: 1.0, blue: 0.98))
-
-    static let night = Palette(skyTop: Color(red: 0.01, green: 0.05, blue: 0.16),
-                               skyMiddle: Color(red: 0.02, green: 0.20, blue: 0.38),
-                               skyBottom: Color(red: 0.04, green: 0.46, blue: 0.58),
-                               ribbon: Color(red: 0.55, green: 0.95, blue: 1.0),
-                               glassFill: Color.white.opacity(0.10),
-                               glassStroke: Color.white.opacity(0.30),
-                               text: .white,
-                               secondaryText: Color.white.opacity(0.72),
-                               focusGlow: Color(red: 0.40, green: 0.95, blue: 1.0))
-
-    static func palette(for colorScheme: ColorScheme) -> Palette
-    {
-        return colorScheme == .dark ? self.night : self.day
-    }
-
-    // MARK: Systems
-
+    /// Muted per-system tint, used for placeholder art and small labels.
     static func tint(for system: KeroSystem) -> Color
     {
         switch system
         {
-        case .gameBoyAdvance: return Color(red: 0.42, green: 0.32, blue: 0.94)
-        case .gameBoyColor: return Color(red: 0.12, green: 0.72, blue: 0.48)
-        case .gameBoy: return Color(red: 0.45, green: 0.55, blue: 0.20)
-        case .nes: return Color(red: 0.88, green: 0.20, blue: 0.24)
-        case .snes: return Color(red: 0.55, green: 0.38, blue: 0.86)
-        case .genesis: return Color(red: 0.12, green: 0.30, blue: 0.80)
+        case .gameBoyAdvance: return Color(red: 0.36, green: 0.33, blue: 0.62)
+        case .gameBoyColor: return Color(red: 0.20, green: 0.45, blue: 0.42)
+        case .gameBoy: return Color(red: 0.38, green: 0.42, blue: 0.30)
+        case .nes: return Color(red: 0.52, green: 0.22, blue: 0.24)
+        case .snes: return Color(red: 0.40, green: 0.36, blue: 0.52)
+        case .genesis: return Color(red: 0.18, green: 0.26, blue: 0.48)
         }
     }
 
     // MARK: Type
 
-    static func font(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font
-    {
-        return .system(size: size, weight: weight, design: .rounded)
-    }
+    static func title(_ size: CGFloat) -> Font { .system(size: size, weight: .semibold) }
+    static func body(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font { .system(size: size, weight: weight) }
+
+    // MARK: Motion
+
+    static let focusSpring = Animation.spring(response: 0.32, dampingFraction: 0.82)
 }
 
-// MARK: - Glass -
+// MARK: - Feedback -
 
-struct KeroGlass<S: Shape>: ViewModifier
+enum KeroFeedback
 {
-    var shape: S
-    var palette: KeroTheme.Palette
+    private static let selection = UISelectionFeedbackGenerator()
+    private static let light = UIImpactFeedbackGenerator(style: .light)
+    private static let soft = UIImpactFeedbackGenerator(style: .soft)
+    private static let rigid = UIImpactFeedbackGenerator(style: .rigid)
 
-    func body(content: Content) -> some View
-    {
-        content
-            .background(.ultraThinMaterial, in: self.shape)
-            .background(self.palette.glassFill, in: self.shape)
-            .overlay(
-                self.shape.stroke(LinearGradient(colors: [self.palette.glassStroke, self.palette.glassStroke.opacity(0.1)],
-                                                 startPoint: .top, endPoint: .bottom), lineWidth: 1)
-            )
-    }
+    static func move() { self.selection.selectionChanged() }
+    static func select() { self.light.impactOccurred() }
+    static func tap() { self.soft.impactOccurred() }
+    static func bump() { self.rigid.impactOccurred(intensity: 0.4) }
 }
 
-extension View
+// MARK: - Color helpers -
+
+extension Color
 {
-    func keroGlass<S: Shape>(_ shape: S, palette: KeroTheme.Palette) -> some View
+    func lighter(_ amount: CGFloat) -> Color { self.adjusted(by: abs(amount)) }
+    func darker(_ amount: CGFloat) -> Color { self.adjusted(by: -abs(amount)) }
+
+    private func adjusted(by amount: CGFloat) -> Color
     {
-        self.modifier(KeroGlass(shape: shape, palette: palette))
-    }
-}
+        var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
+        guard UIColor(self).getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha) else { return self }
 
-// MARK: - Glossy capsule button style -
-
-struct KeroGlossyButtonStyle: ButtonStyle
-{
-    var tint: Color
-    var isFocused: Bool = false
-    var palette: KeroTheme.Palette
-
-    func makeBody(configuration: Configuration) -> some View
-    {
-        configuration.label
-            .font(KeroTheme.font(17, .semibold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 22)
-            .padding(.vertical, 12)
-            .background(
-                ZStack {
-                    Capsule().fill(LinearGradient(colors: [self.tint.opacity(0.95), self.tint.opacity(0.75)], startPoint: .top, endPoint: .bottom))
-
-                    // Top gloss
-                    Capsule()
-                        .fill(LinearGradient(colors: [Color.white.opacity(0.6), Color.white.opacity(0.05)], startPoint: .top, endPoint: .center))
-                        .padding(.horizontal, 6)
-                        .padding(.top, 2)
-                        .mask(VStack(spacing: 0) { Rectangle(); Color.clear })
-                }
-            )
-            .overlay(Capsule().stroke(Color.white.opacity(0.7), lineWidth: 1))
-            .overlay(
-                Capsule()
-                    .stroke(self.palette.focusGlow, lineWidth: self.isFocused ? 3 : 0)
-                    .shadow(color: self.palette.focusGlow, radius: self.isFocused ? 8 : 0)
-                    .padding(-4)
-            )
-            .shadow(color: self.tint.opacity(0.45), radius: 8, y: 4)
-            .scaleEffect(configuration.isPressed ? 0.95 : (self.isFocused ? 1.06 : 1.0))
-            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: self.isFocused)
+        let newBrightness = min(1, max(0, brightness + amount))
+        let newSaturation = amount > 0 ? max(0, saturation - amount * 0.5) : saturation
+        return Color(hue: Double(hue), saturation: Double(newSaturation), brightness: Double(newBrightness), opacity: Double(alpha))
     }
 }

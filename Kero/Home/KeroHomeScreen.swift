@@ -19,7 +19,7 @@ struct KeroHomeScreen: View
 
     var body: some View
     {
-        KeroHomeView(model: self.model)
+        KeroConsoleHome(model: self.model)
             .onAppear {
                 self.model.host = self.appModel
                 self.model.update(games: self.games)

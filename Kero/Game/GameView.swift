@@ -43,9 +43,8 @@ struct GameView: View
 
                     if self.showsTouchControls
                     {
-                        KeroTouchControls(system: self.session.game.system, layout: .landscape, onChange: { self.session.input.touchButtons = $0 })
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 16)
+                        KeroTouchController(system: self.session.game.system, layout: .landscape, onChange: { self.session.input.touchButtons = $0 })
+                            .ignoresSafeArea()
                     }
                 }
                 else
@@ -57,9 +56,9 @@ struct GameView: View
 
                         if self.showsTouchControls
                         {
-                            KeroTouchControls(system: self.session.game.system, layout: .portrait, onChange: { self.session.input.touchButtons = $0 })
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 12)
+                            KeroTouchController(system: self.session.game.system, layout: .portrait, onChange: { self.session.input.touchButtons = $0 })
+                                .frame(maxWidth: 560)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
                         else
                         {
@@ -69,9 +68,10 @@ struct GameView: View
                 }
 
                 self.menuButton
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    // Landscape: top centre, clear of the L/R shoulder buttons.
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: isLandscape ? .top : .topTrailing)
                     .padding(.top, isLandscape ? 8 : 0)
-                    .padding(.trailing, 12)
+                    .padding(.trailing, isLandscape ? 0 : 12)
 
                 if self.session.isFastForwarding
                 {
@@ -108,6 +108,7 @@ struct GameView: View
         }
         .statusBarHidden(true)
         .persistentSystemOverlays(.hidden)
+        .defersSystemGestures(on: .all)
     }
 
     private var screen: some View {
