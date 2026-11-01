@@ -25,12 +25,14 @@ final class AppModel
     var isImporting = false
     var isShowingSettings = false
     var gamePendingDeletion: KeroGame?
+    var gamePendingRename: KeroGame?
+    var renameText = ""
     var message: AppMessage?
 
     @ObservationIgnored var modelContext: ModelContext?
 
     var isShowingSheet: Bool {
-        return self.isImporting || self.isShowingSettings || self.gamePendingDeletion != nil || self.message != nil
+        return self.isImporting || self.isShowingSettings || self.gamePendingDeletion != nil || self.gamePendingRename != nil || self.message != nil
     }
 
     func returnHome()
@@ -80,6 +82,18 @@ final class AppModel
             let title = result.imported.isEmpty ? "Nothing Imported" : "Imported \(result.imported.count) of \(urls.count)"
             self.message = AppMessage(title: title, text: lines.joined(separator: "\n"))
         }
+    }
+
+    func commitRename()
+    {
+        guard let game = self.gamePendingRename else { return }
+        self.gamePendingRename = nil
+
+        let name = self.renameText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, name != game.name else { return }
+
+        game.name = name
+        try? self.modelContext?.save()
     }
 
     func deletePendingGame()
@@ -155,6 +169,12 @@ extension AppModel: KeroHomeHost
     func confirmDelete(_ game: KeroGame)
     {
         self.gamePendingDeletion = game
+    }
+
+    func rename(_ game: KeroGame)
+    {
+        self.renameText = game.name
+        self.gamePendingRename = game
     }
 }
 

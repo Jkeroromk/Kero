@@ -246,6 +246,9 @@ private struct KeroGameRow: View
                                 Button { self.model.perform(.favorite, for: game) } label: {
                                     Label(game.isFavorite ? "Remove Favorite" : "Favorite", systemImage: game.isFavorite ? "star.slash" : "star")
                                 }
+                                Button { self.model.host?.rename(game) } label: {
+                                    Label("Rename", systemImage: "pencil")
+                                }
                                 Button(role: .destructive) { self.model.perform(.delete, for: game) } label: {
                                     Label("Delete", systemImage: "trash")
                                 }
@@ -400,6 +403,9 @@ private struct KeroActionButton: View
                 case .favorite:
                     self.circle(self.game.isFavorite ? "star.fill" : "star", tint: self.game.isFavorite ? .yellow : .white)
 
+                case .rename:
+                    self.circle("pencil")
+
                 case .delete:
                     self.circle("trash")
                 }
@@ -432,6 +438,7 @@ private struct KeroActionButton: View
         case .play: return self.isRunning ? "Resume" : "Play"
         case .restart: return "Restart"
         case .favorite: return self.game.isFavorite ? "Remove Favorite" : "Favorite"
+        case .rename: return "Rename"
         case .delete: return "Delete"
         }
     }

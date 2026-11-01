@@ -21,6 +21,7 @@ protocol KeroHomeHost: AnyObject
     func showImport()
     func showSettings()
     func confirmDelete(_ game: KeroGame)
+    func rename(_ game: KeroGame)
 }
 
 /// Which row has controller focus.
@@ -36,6 +37,7 @@ enum KeroGameAction: Hashable
     case play
     case restart
     case favorite
+    case rename
     case delete
 }
 
@@ -137,6 +139,7 @@ final class KeroHomeModel: ObservableObject
         var actions: [KeroGameAction] = [.play]
         if self.isRunning(game) { actions.append(.restart) }
         actions.append(.favorite)
+        actions.append(.rename)
         actions.append(.delete)
         return actions
     }
@@ -179,6 +182,9 @@ final class KeroHomeModel: ObservableObject
             try? game.modelContext?.save()
             self.objectWillChange.send()
             KeroFeedback.tap()
+
+        case .rename:
+            self.host?.rename(game)
 
         case .delete:
             self.host?.confirmDelete(game)

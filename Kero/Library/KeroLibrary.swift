@@ -89,7 +89,8 @@ enum KeroLibrary
                     try FileManager.default.copyItem(at: localURL, to: destination)
                 }
 
-                let game = KeroGame(identifier: identifier, name: name, fileName: fileName, system: system)
+                let displayName = KeroGameName.displayName(fileName: name, romURL: destination, system: system)
+                let game = KeroGame(identifier: identifier, name: displayName, fileName: fileName, system: system)
                 context.insert(game)
                 result.imported.append(game)
             }
@@ -101,6 +102,27 @@ enum KeroLibrary
 
         try? context.save()
         return result
+    }
+
+    /// One-time cleanup of names imported before Kero tidied file names
+    /// ("1986 - Pokemon - Emerald Version (USA, Europe)" → "Pokemon - Emerald Version").
+    @MainActor
+    static func tidyNames(in context: ModelContext)
+    {
+        let key = "KeroNameCleanupVersion"
+        guard UserDefaults.standard.integer(forKey: key) < 1 else { return }
+
+        if let games = try? context.fetch(FetchDescriptor<KeroGame>())
+        {
+            for game in games
+            {
+                let name = KeroGameName.displayName(fileName: game.name, romURL: game.romURL, system: game.system)
+                if name != game.name { game.name = name }
+            }
+            try? context.save()
+        }
+
+        UserDefaults.standard.set(1, forKey: key)
     }
 
     /// Copies a (possibly cloud-only) file into a temporary location using NSFileCoordinator.

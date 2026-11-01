@@ -56,6 +56,7 @@ struct RootView: View
         }
         .onAppear {
             appModel.modelContext = self.modelContext
+            KeroLibrary.tidyNames(in: self.modelContext)
         }
         .fileImporter(isPresented: $appModel.isImporting,
                       allowedContentTypes: KeroLibrary.importableTypes,
@@ -72,6 +73,14 @@ struct RootView: View
             Button("Cancel", role: .cancel) { appModel.gamePendingDeletion = nil }
         } message: {
             Text("The game file is removed. Its saves stay on this iPhone and come back if you import the same game again.")
+        }
+        .alert("Rename Game",
+               isPresented: Binding(get: { appModel.gamePendingRename != nil },
+                                    set: { if !$0 { appModel.gamePendingRename = nil } })) {
+            TextField("Name", text: $appModel.renameText)
+                .submitLabel(.done)
+            Button("Save") { appModel.commitRename() }
+            Button("Cancel", role: .cancel) { appModel.gamePendingRename = nil }
         }
         .alert(appModel.message?.title ?? "",
                isPresented: Binding(get: { appModel.message != nil },
