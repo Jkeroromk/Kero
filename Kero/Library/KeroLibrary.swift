@@ -27,6 +27,22 @@ enum KeroLibrary
         return [.item]
     }
 
+    /// Where iOS drops a copy of a file opened with "Open in Kero" (we don't open documents in place).
+    static var inboxDirectory: URL {
+        return URL.documentsDirectory.appendingPathComponent("Inbox", isDirectory: true)
+    }
+
+    /// Removes the Inbox copy iOS made for "Open in Kero", once it has been imported (or rejected).
+    /// Files picked with the importer live elsewhere and are never touched.
+    static func removeInboxCopy(_ url: URL)
+    {
+        let inbox = self.inboxDirectory.standardizedFileURL.resolvingSymlinksInPath().path + "/"
+        let file = url.standardizedFileURL.resolvingSymlinksInPath().path
+        guard file.hasPrefix(inbox) else { return }
+
+        try? FileManager.default.removeItem(atPath: file)
+    }
+
     struct ImportResult
     {
         var imported: [KeroGame] = []

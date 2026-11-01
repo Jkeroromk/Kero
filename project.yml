@@ -52,4 +52,5 @@ targets:
         INFOPLIST_KEY_UIStatusBarHidden: YES
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
         INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: NO
-        INFOPLIST_KEY_UIFileSharingEnabled: YES
+        # Games and saves live in Application Support, so there's nothing to show in the Files app.
+        INFOPLIST_KEY_UIFileSharingEnabled: NO

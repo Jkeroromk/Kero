@@ -87,10 +87,12 @@ jobs:
                       print(f"::notice title=App Store Connect::Key works. Found app record '{apps[0]['attributes']['name']}'.")
                   else:
                       print("::error title=App Store Connect::Key works, but there's no app with bundle ID com.jkeroro.Kero. Create it in App Store Connect first.")
+                      raise SystemExit(1)
           except urllib.error.HTTPError as e:
               body = e.read().decode(errors="replace")
               detail = "; ".join(err.get("detail", "") for err in json.loads(body).get("errors", [])) if body.startswith("{") else body[:300]
               print(f"::error title=App Store Connect API {e.code}::{detail} — check that ASC_KEY_ID, ASC_ISSUER_ID and ASC_KEY_P8 belong to the same Team key (Users and Access → Integrations → Team Keys).")
+              raise SystemExit(1)
           PY
 
       - name: Set up
@@ -126,9 +128,9 @@ jobs:
             CODE_SIGN_STYLE=Automatic \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             > build/archive.log 2>&1 || true
-          ERRORS="$(grep -E "error: |error:" build/archive.log | sed "s#$GITHUB_WORKSPACE/##" | sort -u | head -40 | awk '{printf "%s%%0A", $0}')"
-          if [ -n "$ERRORS" ]; then echo "::error title=Archive errors::$ERRORS"; fi
-          grep -q "ARCHIVE SUCCEEDED" build/archive.log || { tail -80 build/archive.log; exit 1; }
+          # Public repo: only app/signing errors are printed, never engine compiler output.
+          ci/report-errors.sh build/archive.log "Archive errors"
+          grep -q "ARCHIVE SUCCEEDED" build/archive.log || { echo "Archive failed. Errors from the app or signing are listed above; archive locally for the full log."; exit 1; }
 
       # Export the signed .ipa locally, then upload it with altool. (Xcode's built-in
       # "destination: upload" path fails to authenticate API keys on Xcode 26.6.)
@@ -145,9 +147,7 @@ jobs:
             > build/export.log 2>&1 || true
           # Xcode logs a harmless "store configuration" auth warning here; only fail if no .ipa came out.
           if ! ls build/export/*.ipa >/dev/null 2>&1; then
-            ERRORS="$(grep -iE "error" build/export.log | sort -u | head -40 | awk '{printf "%s%%0A", $0}')"
-            echo "::error title=Export errors::$ERRORS"
-            tail -60 build/export.log
+            ci/report-errors.sh build/export.log "Export errors"
             exit 1
           fi
 
@@ -178,5 +178,9 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: testflight-logs
-          path: build/*.log
+          # Not archive.log: it holds the private engine's full compiler output, and
+          # artifacts on a public repo can be downloaded by anyone.
+          path: |
+            build/export.log
+            build/upload.log
           if-no-files-found: ignore

@@ -16,7 +16,7 @@ jobs:
     runs-on: xcode-27  # Xcode 27.x / iOS 27.1 SDK: needed for the iPhone Duo inner display
     timeout-minutes: 60
     permissions:
-      contents: write
+      contents: read
     env:
       ENGINE_TOKEN: ${{ secrets.ENGINE_TOKEN }}
     steps:
@@ -42,28 +42,14 @@ jobs:
           xcodebuild -downloadComponent MetalToolchain || true
           xcodegen
 
+      # This repo is public, so its Actions logs are too. Only print errors from the app's own
+      # sources or from signing/setup; anything from Swift packages (the private engine, mGBA)
+      # is counted but not shown. Engine problems show up in Kero-Engine's own CI.
       - name: Build
         if: env.SKIP != '1'
         run: |
           mkdir -p build
           xcodebuild build -project Kero.xcodeproj -scheme Kero -destination 'generic/platform=iOS' \
             -derivedDataPath build/DerivedData -scmProvider system CODE_SIGNING_ALLOWED=NO > build/xcodebuild.log 2>&1 || true
-          ERRORS="$(grep -E "error: " build/xcodebuild.log | sed "s#$GITHUB_WORKSPACE/##" | sort -u | head -60 | awk '{printf "%s%%0A", $0}')"
-          if [ -n "$ERRORS" ]; then echo "::error title=Compiler errors::$ERRORS"; fi
-          grep -q "BUILD SUCCEEDED" build/xcodebuild.log || { tail -60 build/xcodebuild.log; exit 1; }
-
-      # Private repo: also publish a summary to the ci-status branch for tools without API access.
-      - name: Publish results
-        if: always() && env.SKIP != '1'
-        env:
-          TOKEN: ${{ github.token }}
-        run: |
-          mkdir -p out
-          { echo "commit: $GITHUB_SHA"; echo "run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"; echo "result: ${{ job.status }}"; } > out/status.txt
-          if [ -f build/xcodebuild.log ]; then
-            grep -E "error:|warning: .*Kero/|BUILD (SUCCEEDED|FAILED)" build/xcodebuild.log | sed "s#$GITHUB_WORKSPACE/##g" | sort -u | head -300 > out/build.txt || true
-            tail -60 build/xcodebuild.log | sed "s#$GITHUB_WORKSPACE/##g" > out/build.tail.txt
-          fi
-          cd out && git init -q && git checkout -q -b ci-status && git add . \
-            && git -c user.name="Kero CI" -c user.email="ci@localhost" commit -q -m "CI results for $GITHUB_SHA" \
-            && git push -q -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" ci-status
+          ci/report-errors.sh build/xcodebuild.log "Compiler errors"
+          grep -q "BUILD SUCCEEDED" build/xcodebuild.log || { echo "Build failed. Errors from the app are listed above; build locally for the full log."; exit 1; }
