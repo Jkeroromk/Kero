@@ -92,7 +92,7 @@ struct AcknowledgementsView: View
             return """
             mGBA — Copyright © 2013–2025 Jeffrey Pfau and contributors. Used under the Mozilla Public License 2.0 (https://mozilla.org/MPL/2.0/). Source code: https://github.com/mgba-emu/mgba
 
-            Includes blip_buf — Copyright © 2003–2009 Shay Green, GNU Lesser General Public License 2.1. Includes inih — Copyright © 2009 Ben Hoyt, BSD 3-Clause License.
+            Includes inih — Copyright © 2009 Ben Hoyt, BSD 3-Clause License.
             """
         default:
             return ""
