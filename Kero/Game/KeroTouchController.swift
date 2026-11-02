@@ -158,6 +158,8 @@ final class KeroTouchControllerView: UIView
         self.addDPad(self.layout.dpad, opacity)
         self.addButton(.b, "B", .circle, self.layout.b, opacity)
         self.addButton(.a, "A", .circle, self.layout.a, opacity)
+        if !self.layout.x.isEmpty { self.addButton(.x, "X", .circle, self.layout.x, opacity) }
+        if !self.layout.y.isEmpty { self.addButton(.y, "Y", .circle, self.layout.y, opacity) }
         self.addButton(.select, "SELECT", .pill, self.layout.select, opacity)
         self.addButton(.start, "START", .pill, self.layout.start, opacity)
 
@@ -174,6 +176,20 @@ final class KeroTouchControllerView: UIView
         dpadWell.strokeColor = UIColor(white: 1, alpha: 0.05).cgColor
         dpadWell.lineWidth = 1
         self.layer.addSublayer(dpadWell)
+
+        // DS: one round well around the four-button diamond.
+        if !self.layout.x.isEmpty
+        {
+            let bounds = self.layout.a.union(self.layout.b).union(self.layout.x).union(self.layout.y)
+            let side = max(bounds.width, bounds.height) * 1.08
+            let diamondWell = CAShapeLayer()
+            diamondWell.path = UIBezierPath(ovalIn: CGRect(x: bounds.midX - side / 2, y: bounds.midY - side / 2, width: side, height: side)).cgPath
+            diamondWell.fillColor = UIColor(white: 0, alpha: 0.28).cgColor
+            diamondWell.strokeColor = UIColor(white: 1, alpha: 0.05).cgColor
+            diamondWell.lineWidth = 1
+            self.layer.addSublayer(diamondWell)
+            return
+        }
 
         // A capsule along the line from B to A.
         let a = CGPoint(x: self.layout.a.midX, y: self.layout.a.midY)
@@ -343,7 +359,7 @@ final class KeroTouchControllerView: UIView
         let expansion: CGFloat
         switch shape
         {
-        case .circle: expansion = frame.width * 0.32
+        case .circle: expansion = frame.width * (self.layout.x.isEmpty ? 0.32 : 0.18)
         case .pill: expansion = 12
         case .shoulder: expansion = 14
         }

@@ -45,9 +45,29 @@ struct GameView: View
                     Color.black
                 }
 
-                self.screen
-                    .frame(width: layout.screen.width, height: layout.screen.height)
-                    .position(x: layout.screen.midX, y: layout.screen.midY)
+                if self.session.game.system == .nintendoDS
+                {
+                    // One frame, two views: the top screen and the touch screen.
+                    self.screen(source: KeroConsoleLayout.dsTopSource)
+                        .frame(width: layout.screen.width, height: layout.screen.height)
+                        .position(x: layout.screen.midX, y: layout.screen.midY)
+
+                    self.screen(source: KeroConsoleLayout.dsBottomSource)
+                        .frame(width: layout.bottomScreen.width, height: layout.bottomScreen.height)
+                        .position(x: layout.bottomScreen.midX, y: layout.bottomScreen.midY)
+
+                    KeroTouchScreen { point in
+                        self.session.emulator.setTouch(point)
+                    }
+                    .frame(width: layout.bottomScreen.width, height: layout.bottomScreen.height)
+                    .position(x: layout.bottomScreen.midX, y: layout.bottomScreen.midY)
+                }
+                else
+                {
+                    self.screen(source: CGRect(x: 0, y: 0, width: 1, height: 1))
+                        .frame(width: layout.screen.width, height: layout.screen.height)
+                        .position(x: layout.screen.midX, y: layout.screen.midY)
+                }
 
                 if layout.hasControls
                 {
@@ -123,8 +143,9 @@ struct GameView: View
                                       aspect: self.session.videoAspectRatio, system: self.session.game.system)
     }
 
-    private var screen: some View {
-        KeroGameScreen(emulator: self.session.emulator, filter: self.filter, usesIntegerScaling: self.usesIntegerScaling)
+    private func screen(source: CGRect) -> some View
+    {
+        KeroGameScreen(emulator: self.session.emulator, filter: self.filter, usesIntegerScaling: self.usesIntegerScaling, sourceRect: source)
     }
 }
 

@@ -55,6 +55,25 @@ struct KeroConsoleShell: View
                 .frame(width: self.layout.bezel.width, height: self.layout.bezel.height)
                 .position(x: self.layout.bezel.midX, y: self.layout.bezel.midY)
 
+            // DS: second bezel for the touch screen.
+            if !self.layout.bottomBezel.isEmpty
+            {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(LinearGradient(colors: [Color(white: 0.055), Color(white: 0.03)], startPoint: .top, endPoint: .bottom))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.07), lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.5), radius: 8, y: 3)
+                    .frame(width: self.layout.bottomBezel.width, height: self.layout.bottomBezel.height)
+                    .position(x: self.layout.bottomBezel.midX, y: self.layout.bottomBezel.midY)
+
+                Rectangle()
+                    .fill(Color.black)
+                    .frame(width: self.layout.bottomScreen.width + 2, height: self.layout.bottomScreen.height + 2)
+                    .position(x: self.layout.bottomScreen.midX, y: self.layout.bottomScreen.midY)
+            }
+
             // Black behind the picture so its edges stay crisp.
             Rectangle()
                 .fill(Color.black)

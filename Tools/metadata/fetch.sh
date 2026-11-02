@@ -5,8 +5,8 @@ set -euo pipefail
 WORK="${1:-$(mktemp -d)}"
 cd "$WORK"
 git clone -q --depth 1 --filter=blob:none --sparse https://github.com/libretro/libretro-database.git
-(cd libretro-database && git sparse-checkout set --no-cone '/metadat/no-intro/Nintendo - Game Boy*')
-for repo in Nintendo_-_Game_Boy_Advance Nintendo_-_Game_Boy_Color Nintendo_-_Game_Boy; do
+(cd libretro-database && git sparse-checkout set --no-cone '/metadat/no-intro/Nintendo - Game Boy*' '/metadat/no-intro/Nintendo - Nintendo DS.dat')
+for repo in Nintendo_-_Game_Boy_Advance Nintendo_-_Game_Boy_Color Nintendo_-_Game_Boy Nintendo_-_Nintendo_DS; do
   git clone -q --depth 1 --filter=blob:none --no-checkout "https://github.com/libretro-thumbnails/$repo.git" "thumbs-$repo"
   (cd "thumbs-$repo" && git ls-tree -r --name-only HEAD | grep '^Named_Boxarts/' > "../boxarts-$repo.txt")
 done

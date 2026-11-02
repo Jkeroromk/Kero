@@ -44,6 +44,16 @@
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
+			<string>com.jkeroro.kero.nds</string>
+			<key>UTTypeDescription</key>
+			<string>Nintendo DS Game</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.data</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>nds</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
 			<string>com.jkeroro.kero.gb</string>
 			<key>UTTypeDescription</key>
 			<string>Game Boy Game</string>
@@ -67,6 +77,7 @@
 				<string>com.jkeroro.kero.gba</string>
 				<string>com.jkeroro.kero.gbc</string>
 				<string>com.jkeroro.kero.gb</string>
+				<string>com.jkeroro.kero.nds</string>
 			</array>
 		</dict>
 		<dict>

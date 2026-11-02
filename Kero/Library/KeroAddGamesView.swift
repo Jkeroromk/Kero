@@ -28,7 +28,7 @@ struct KeroAddGamesView: View
                     Button {
                         self.importerTypes = [.item]
                     } label: {
-                        KeroAddGamesRow(title: "Files", subtitle: "Choose .gba, .gbc, .gb or .zip files", symbol: "doc.fill")
+                        KeroAddGamesRow(title: "Files", subtitle: "Choose .nds, .gba, .gbc, .gb or .zip files", symbol: "doc.fill")
                     }
 
                     Button {

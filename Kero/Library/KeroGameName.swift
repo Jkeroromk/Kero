@@ -87,6 +87,7 @@ enum KeroGameName
         switch system
         {
         case .gameBoyAdvance: range = 0xA0 ..< 0xAC
+        case .nintendoDS: range = 0x00 ..< 0x0C
         case .gameBoy, .gameBoyColor: range = 0x134 ..< 0x144
         default: return nil
         }

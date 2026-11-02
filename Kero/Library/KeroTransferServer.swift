@@ -27,8 +27,8 @@ final class KeroTransferServer: @unchecked Sendable
     /// Called on the main queue with the received file (in a temporary folder) and its original name.
     var onFileReceived: ((URL, String) -> Void)?
 
-    static let allowedExtensions: Set<String> = ["gba", "gbc", "gb", "zip"]
-    static let maximumFileSize = 256 * 1024 * 1024
+    static let allowedExtensions: Set<String> = ["nds", "gba", "gbc", "gb", "zip"]
+    static let maximumFileSize = 600 * 1024 * 1024
 
     let uploadsDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("WiFiTransfer", isDirectory: true)
 
@@ -286,7 +286,7 @@ private final class KeroHTTPConnection
         let pathExtension = (fileName as NSString).pathExtension.lowercased()
 
         guard !fileName.isEmpty, KeroTransferServer.allowedExtensions.contains(pathExtension) else {
-            return self.respond(415, "Only .gba, .gbc, .gb and .zip files.")
+            return self.respond(415, "Only .nds, .gba, .gbc, .gb and .zip files.")
         }
         guard length > 0, length <= KeroTransferServer.maximumFileSize else {
             return self.respond(413, "File is empty or too large.")
@@ -443,8 +443,8 @@ private enum KeroTransferPage
       <p class="sub">Send games to your iPhone. Keep Kero open on the Wi-Fi Transfer screen.</p>
       <label id="drop">
         <strong>Drop games here</strong>
-        <span>or click to choose · .gba .gbc .gb .zip</span>
-        <input id="pick" type="file" multiple accept=".gba,.gbc,.gb,.zip" hidden>
+        <span>or click to choose · .nds .gba .gbc .gb .zip</span>
+        <input id="pick" type="file" multiple accept=".nds,.gba,.gbc,.gb,.zip" hidden>
       </label>
       <ul id="list"></ul>
       <footer>Only send games you own.</footer>
