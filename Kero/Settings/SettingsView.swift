@@ -119,10 +119,22 @@ struct AcknowledgementsView: View
     var body: some View
     {
         List {
-            ForEach(KeroCores.all) { core in
-                Section(core.displayName) {
-                    Text(Self.notice(for: core.id))
-                        .font(.footnote)
+            ForEach(KeroCores.thirdPartyNotices) { notice in
+                Section {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(notice.usedFor)
+                            .font(.footnote.weight(.semibold))
+                        Text(notice.copyright)
+                            .font(.footnote)
+                        Text(notice.licenseText)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Link(notice.url.absoluteString, destination: notice.url)
+                            .font(.caption)
+                    }
+                    .padding(.vertical, 4)
+                } header: {
+                    Text([notice.name, notice.version].compactMap { $0 }.joined(separator: " ") + " · " + notice.license)
                 }
             }
 
@@ -139,18 +151,4 @@ struct AcknowledgementsView: View
         .navigationTitle("Acknowledgements")
     }
 
-    private static func notice(for coreID: String) -> String
-    {
-        switch coreID
-        {
-        case "kero.core.mgba":
-            return """
-            mGBA — Copyright © 2013–2025 Jeffrey Pfau and contributors. Used under the Mozilla Public License 2.0 (https://mozilla.org/MPL/2.0/). Source code: https://github.com/mgba-emu/mgba
-
-            Includes inih — Copyright © 2009 Ben Hoyt, BSD 3-Clause License.
-            """
-        default:
-            return ""
-        }
-    }
 }
