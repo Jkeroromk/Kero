@@ -5,7 +5,7 @@ Inputs (not checked in; fetch with Tools/metadata/fetch.sh):
   libretro-database/metadat/no-intro/Nintendo - Game Boy*.dat   (CC BY-SA 4.0, libretro / No-Intro)
   boxarts-<system>.txt   file list of libretro-thumbnails' Named_Boxarts (to know which covers exist)
 
-Output: Kero/Resources/GameDB/{gba,gbc,gb}.tsv, one game per line:
+Output: Kero/Resources/GameDB/{gba,gbc,gb,nds}.tsv, one game per line:
   sha1  serial  title  region  languages  flags  boxart
 - title: display title in English ("The Legend of Zelda: The Minish Cap")
 - languages: comma-separated ISO 639-1 codes
@@ -28,6 +28,7 @@ SYSTEMS = {
     "gba": ("Nintendo - Game Boy Advance", "Nintendo_-_Game_Boy_Advance"),
     "gbc": ("Nintendo - Game Boy Color", "Nintendo_-_Game_Boy_Color"),
     "gb": ("Nintendo - Game Boy", "Nintendo_-_Game_Boy"),
+    "nds": ("Nintendo - Nintendo DS", "Nintendo_-_Nintendo_DS"),
 }
 
 REGION_LANGUAGES = {

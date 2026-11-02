@@ -514,7 +514,7 @@ private struct KeroEmptyLibrary: View
                 .foregroundStyle(KeroTheme.primaryText)
                 .padding(.top, 8)
 
-            Text("Import game files you own (.gba, .gbc, .gb) from Files or iCloud Drive.")
+            Text("Import game files you own (.nds, .gba, .gbc, .gb) from Files or iCloud Drive.")
                 .font(KeroTheme.body(14))
                 .foregroundStyle(KeroTheme.secondaryText)
         }

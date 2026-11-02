@@ -237,7 +237,7 @@ enum KeroLibrary
                     let games = try self.stageZip(url)
                     if games.isEmpty
                     {
-                        failures.append((url.lastPathComponent, "No Game Boy or GBA games inside."))
+                        failures.append((url.lastPathComponent, "No games Kero can play inside."))
                     }
                     candidates.append(contentsOf: games)
                 }
@@ -281,7 +281,7 @@ enum KeroLibrary
 
                 if found == 0 && failures.isEmpty
                 {
-                    failures.append((url.lastPathComponent, "No Game Boy or GBA games in this folder."))
+                    failures.append((url.lastPathComponent, "No games Kero can play in this folder."))
                 }
             }
             else

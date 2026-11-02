@@ -37,6 +37,7 @@ enum KeroTheme
         case .nes: return Color(red: 0.52, green: 0.22, blue: 0.24)
         case .snes: return Color(red: 0.40, green: 0.36, blue: 0.52)
         case .genesis: return Color(red: 0.18, green: 0.26, blue: 0.48)
+        case .nintendoDS: return Color(red: 0.30, green: 0.36, blue: 0.44)
         }
     }
 

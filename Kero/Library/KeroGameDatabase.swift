@@ -114,6 +114,7 @@ final class KeroGameDatabase: @unchecked Sendable
         case .gameBoyAdvance: folder = "Nintendo - Game Boy Advance"
         case .gameBoyColor: folder = "Nintendo - Game Boy Color"
         case .gameBoy: folder = "Nintendo - Game Boy"
+        case .nintendoDS: folder = "Nintendo - Nintendo DS"
         default: return nil
         }
 
@@ -157,6 +158,7 @@ final class KeroGameDatabase: @unchecked Sendable
         case .gameBoyAdvance: resource = "gba"
         case .gameBoyColor: resource = "gbc"
         case .gameBoy: resource = "gb"
+        case .nintendoDS: resource = "nds"
         default: resource = ""
         }
 
@@ -275,6 +277,9 @@ final class KeroGameDatabase: @unchecked Sendable
         {
         case .gameBoyAdvance:
             return (ascii(at: 0xAC, length: 4), ascii(at: 0xA0, length: 12))
+        case .nintendoDS:
+            // DS header: 12-character title at 0x00, 4-character game code at 0x0C.
+            return (ascii(at: 0x0C, length: 4), ascii(at: 0x00, length: 12))
         case .gameBoy, .gameBoyColor:
             // Newer GBC games put a 4-character code in the last bytes of the title; match the old 11-character form too.
             let full = ascii(at: 0x134, length: 16)
