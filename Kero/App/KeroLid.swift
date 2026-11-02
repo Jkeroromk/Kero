@@ -108,9 +108,12 @@ struct KeroLidView: View
     var body: some View
     {
         GeometryReader { geometry in
-            let size = geometry.size
-            let isPortrait = size.height >= size.width
-            let shortSide = min(size.width, size.height)
+            let screen = geometry.size
+            let screenIsPortrait = screen.height > screen.width
+            // The lid is always drawn wide, hinge along its top edge, like a closed clamshell lying in
+            // landscape. On a portrait screen the whole lid is turned 90°.
+            let size = CGSize(width: max(screen.width, screen.height), height: min(screen.width, screen.height))
+            let shortSide = size.height
             let engraving = self.color.isLight ? Color.black : Color.white
 
             ZStack {
@@ -128,12 +131,12 @@ struct KeroLidView: View
                         LinearGradient(colors: [.white.opacity(0.22), .black.opacity(0.28)], startPoint: .top, endPoint: .bottom),
                         lineWidth: 1.5
                     )
-                    .padding(EdgeInsets(top: isPortrait ? shortSide * 0.13 : shortSide * 0.06,
-                                        leading: isPortrait ? shortSide * 0.06 : shortSide * 0.13,
+                    .padding(EdgeInsets(top: shortSide * 0.14,
+                                        leading: shortSide * 0.06,
                                         bottom: shortSide * 0.06,
                                         trailing: shortSide * 0.06))
 
-                KeroHinge(isPortrait: isPortrait, color: self.color, shortSide: shortSide)
+                KeroHinge(isPortrait: true, color: self.color, shortSide: shortSide)
 
                 // Emblem: an engraved ring with the wordmark.
                 VStack(spacing: shortSide * 0.05) {
@@ -180,6 +183,8 @@ struct KeroLidView: View
                 }
             }
             .frame(width: size.width, height: size.height)
+            .rotationEffect(.degrees(screenIsPortrait ? -90 : 0))
+            .position(x: screen.width / 2, y: screen.height / 2)
         }
         .ignoresSafeArea()
         .statusBarHidden(true)
