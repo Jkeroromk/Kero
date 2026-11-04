@@ -69,17 +69,21 @@ struct GameView: View
                         .position(x: layout.screen.midX, y: layout.screen.midY)
                 }
 
-                if layout.hasControls
+                // Hidden behind the pause menu so nothing shows through it or takes touches.
+                if layout.hasControls && !self.session.isMenuVisible
                 {
                     KeroTouchController(layout: layout, system: self.session.game.system, onChange: { self.session.input.touchButtons = $0 })
                         .frame(width: layout.size.width, height: layout.size.height)
                 }
 
-                KeroHomeButton(isOverlay: !layout.hasShell) {
-                    self.session.toggleMenu()
+                if !self.session.isMenuVisible
+                {
+                    KeroHomeButton(isOverlay: !layout.hasShell) {
+                        self.session.toggleMenu()
+                    }
+                    .frame(width: layout.menu.width, height: layout.menu.height)
+                    .position(x: layout.menu.midX, y: layout.menu.midY)
                 }
-                .frame(width: layout.menu.width, height: layout.menu.height)
-                .position(x: layout.menu.midX, y: layout.menu.midY)
 
                 if self.session.isFastForwarding
                 {

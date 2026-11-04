@@ -233,7 +233,8 @@ struct KeroPauseMenu: View
             let scale = isNarrow ? 1 : min(1.15, max(0.62, min(geometry.size.width / 1180, geometry.size.height / 830)))
 
             ZStack {
-                Color(hex: 0x08090C, opacity: 0.72)
+                // Solid enough that the game, its shell and the on-screen controls don't show through.
+                Color(hex: 0x0B0C10, opacity: 0.97)
                     .ignoresSafeArea()
                     .contentShape(Rectangle())
                     .onTapGesture { self.session.closeMenu() }
@@ -307,6 +308,11 @@ struct KeroPauseMenu: View
             if fillsHeight { Spacer(minLength: 12) }
 
             VStack(alignment: .leading, spacing: 14 * scale) {
+                Text("Display & Sound")
+                    .font(.system(size: 13, weight: .semibold))
+                    .tracking(0.6)
+                    .foregroundStyle(KeroTheme.secondaryText)
+
                 self.settingRow("Screen", focus: .filter) {
                     self.filterPicker
                 }
@@ -330,6 +336,8 @@ struct KeroPauseMenu: View
                         .frame(width: 36, alignment: .trailing)
                 }
             }
+            .padding(18 * scale)
+            .keroCard(cornerRadius: 20, fill: Color.white.opacity(0.04), stroke: KeroTheme.stroke)
             .frame(maxWidth: 560)
         }
         .frame(maxWidth: .infinity, maxHeight: fillsHeight ? .infinity : nil, alignment: .topLeading)
