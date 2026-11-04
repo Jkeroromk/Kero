@@ -40,9 +40,16 @@ final class KeroInputRouter
     var commandHandler: ((KeroCommand) -> Void)?
     var connectionHandler: ((Bool) -> Void)?
 
+    /// Fire A / B / X on release instead of press, so a press that closes a menu over a running
+    /// game (the pause menu) is over before the game gets the controller back.
+    var firesButtonsOnRelease = false
+
     private(set) var isControllerConnected = false
 
     private var held = Set<String>()
+    /// Buttons already down when we attached (e.g. the Home press that opened the pause menu):
+    /// their release must not count as a press.
+    private var suppressed = Set<String>()
     private var repeatTimer: Timer?
     private var repeatingCommand: KeroCommand?
     private var observers: [NSObjectProtocol] = []
@@ -82,6 +89,7 @@ final class KeroInputRouter
 
         self.stopRepeating()
         self.held.removeAll()
+        self.suppressed.removeAll()
     }
 }
 
@@ -94,7 +102,15 @@ private extension KeroInputRouter
         let controllers = GCController.controllers()
         for controller in controllers
         {
-            controller.extendedGamepad?.valueChangedHandler = { [weak self] gamepad, _ in
+            guard let gamepad = controller.extendedGamepad else { continue }
+
+            for input in self.inputs(of: gamepad) where input.isPressed && !self.held.contains(input.key)
+            {
+                self.held.insert(input.key)
+                self.suppressed.insert(input.key)
+            }
+
+            gamepad.valueChangedHandler = { [weak self] gamepad, _ in
                 MainActor.assumeIsolated { self?.gamepadChanged(gamepad) }
             }
         }
@@ -108,24 +124,45 @@ private extension KeroInputRouter
         self.connectionHandler?(connected)
     }
 
+    struct GamepadInput
+    {
+        var key: String
+        var isPressed: Bool
+        var command: KeroCommand
+        var firesOnRelease = false
+    }
+
+    func inputs(of gamepad: GCExtendedGamepad) -> [GamepadInput]
+    {
+        let stick = gamepad.leftThumbstick
+        let buttonsOnRelease = self.firesButtonsOnRelease
+
+        // Same positional layout as in-game: right face button confirms, bottom goes back.
+        return [
+            GamepadInput(key: "up", isPressed: gamepad.dpad.up.isPressed || stick.yAxis.value > 0.6, command: .up),
+            GamepadInput(key: "down", isPressed: gamepad.dpad.down.isPressed || stick.yAxis.value < -0.6, command: .down),
+            GamepadInput(key: "left", isPressed: gamepad.dpad.left.isPressed || stick.xAxis.value < -0.6, command: .left),
+            GamepadInput(key: "right", isPressed: gamepad.dpad.right.isPressed || stick.xAxis.value > 0.6, command: .right),
+            GamepadInput(key: "confirm", isPressed: gamepad.buttonB.isPressed, command: .confirm, firesOnRelease: buttonsOnRelease),
+            GamepadInput(key: "back", isPressed: gamepad.buttonA.isPressed, command: .back, firesOnRelease: buttonsOnRelease),
+            GamepadInput(key: "action", isPressed: gamepad.buttonX.isPressed, command: .action, firesOnRelease: buttonsOnRelease),
+            GamepadInput(key: "pageUp", isPressed: gamepad.leftShoulder.isPressed || gamepad.leftTrigger.isPressed, command: .pageUp),
+            GamepadInput(key: "pageDown", isPressed: gamepad.rightShoulder.isPressed || gamepad.rightTrigger.isPressed, command: .pageDown),
+            // Resume fires on release so the press doesn't leak into the game. Home does the same
+            // as Menu here (in a game it opens the pause menu, so here it closes it again).
+            GamepadInput(key: "resume", isPressed: gamepad.buttonMenu.isPressed, command: .resume, firesOnRelease: true),
+            GamepadInput(key: "home", isPressed: gamepad.buttonHome?.isPressed == true, command: .resume, firesOnRelease: true),
+        ]
+    }
+
     func gamepadChanged(_ gamepad: GCExtendedGamepad)
     {
         guard self.isRunning else { return }
 
-        let stick = gamepad.leftThumbstick
-
-        // Same positional layout as in-game: right face button confirms, bottom goes back.
-        self.update("up", gamepad.dpad.up.isPressed || stick.yAxis.value > 0.6, .up)
-        self.update("down", gamepad.dpad.down.isPressed || stick.yAxis.value < -0.6, .down)
-        self.update("left", gamepad.dpad.left.isPressed || stick.xAxis.value < -0.6, .left)
-        self.update("right", gamepad.dpad.right.isPressed || stick.xAxis.value > 0.6, .right)
-        self.update("confirm", gamepad.buttonB.isPressed, .confirm)
-        self.update("back", gamepad.buttonA.isPressed, .back)
-        self.update("action", gamepad.buttonX.isPressed, .action)
-        self.update("pageUp", gamepad.leftShoulder.isPressed || gamepad.leftTrigger.isPressed, .pageUp)
-        self.update("pageDown", gamepad.rightShoulder.isPressed || gamepad.rightTrigger.isPressed, .pageDown)
-        // Resume fires on release so the press doesn't leak into the game.
-        self.update("resume", gamepad.buttonMenu.isPressed, .resume, firesOnRelease: true)
+        for input in self.inputs(of: gamepad)
+        {
+            self.update(input.key, input.isPressed, input.command, firesOnRelease: input.firesOnRelease)
+        }
     }
 
     func keyChanged(_ keyCode: GCKeyCode, pressed: Bool)
@@ -149,7 +186,8 @@ private extension KeroInputRouter
         }
 
         guard let command else { return }
-        self.update("key.\(keyCode.rawValue)", pressed, command, firesOnRelease: command == .resume)
+        let onRelease = command == .resume || (self.firesButtonsOnRelease && !command.isDirectional)
+        self.update("key.\(keyCode.rawValue)", pressed, command, firesOnRelease: onRelease)
     }
 
     func update(_ key: String, _ isPressed: Bool, _ command: KeroCommand, firesOnRelease: Bool = false)
@@ -171,6 +209,11 @@ private extension KeroInputRouter
         {
             guard self.held.contains(key) else { return }
             self.held.remove(key)
+
+            if self.suppressed.remove(key) != nil
+            {
+                return
+            }
 
             if firesOnRelease
             {

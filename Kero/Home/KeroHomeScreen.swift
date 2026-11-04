@@ -8,7 +8,7 @@
 import SwiftData
 import SwiftUI
 
-/// Connects the bubble home screen to the library (SwiftData), the app model and controller input.
+/// Connects home, library and game details to the library (SwiftData), the app model and controller input.
 struct KeroHomeScreen: View
 {
     @Environment(AppModel.self) private var appModel
@@ -17,25 +17,68 @@ struct KeroHomeScreen: View
     @StateObject private var model = KeroHomeModel()
     @State private var input = KeroInputRouter()
 
+    /// Narrower than this (the folded outer display, or an iPhone held upright) gets the compact home.
+    static let compactWidth: CGFloat = 560
+
     var body: some View
     {
-        KeroConsoleHome(model: self.model)
-            .onAppear {
-                self.model.host = self.appModel
-                self.model.update(games: self.games)
-                self.configureInput()
-                self.updateInputActivity()
+        GeometryReader { geometry in
+            let isCompact = geometry.size.width < Self.compactWidth
+
+            self.content(isCompact: isCompact)
+                .onAppear { self.model.isCompact = isCompact }
+                .onChange(of: isCompact) { _, isCompact in self.model.isCompact = isCompact }
+        }
+        .background(KeroTheme.background.ignoresSafeArea())
+        .preferredColorScheme(.dark)
+        .statusBarHidden(true)
+        .persistentSystemOverlays(.hidden)
+        .onAppear {
+            let model = self.model
+            model.host = self.appModel
+            self.appModel.gameWillBeDeleted = { [weak model] game in
+                model?.gameWillBeDeleted(game)
             }
-            .onChange(of: self.games) { _, games in
-                self.model.update(games: games)
-            }
-            .onChange(of: self.appModel.isPlaying) { _, _ in
-                self.model.refreshNowPlaying()
-                self.updateInputActivity()
-            }
-            .onChange(of: self.appModel.isShowingSheet) { _, _ in
-                self.updateInputActivity()
-            }
+            self.model.update(games: self.games)
+            self.configureInput()
+            self.updateInputActivity()
+        }
+        .onChange(of: self.games) { _, games in
+            self.model.update(games: games)
+        }
+        .onChange(of: self.appModel.isPlaying) { _, _ in
+            self.model.refreshNowPlaying()
+            self.updateInputActivity()
+        }
+        .onChange(of: self.appModel.isShowingSheet) { _, _ in
+            self.updateInputActivity()
+        }
+    }
+
+    @ViewBuilder
+    private func content(isCompact: Bool) -> some View
+    {
+        if self.model.section == .details, let game = self.model.detailGame
+        {
+            KeroGameDetailView(model: self.model, game: game)
+                .id(game.identifier)
+                .transition(.opacity)
+        }
+        else if isCompact
+        {
+            KeroCompactHome(model: self.model)
+                .transition(.opacity)
+        }
+        else if self.model.section == .library
+        {
+            KeroLibraryView(model: self.model)
+                .transition(.opacity)
+        }
+        else
+        {
+            KeroConsoleHome(model: self.model)
+                .transition(.opacity)
+        }
     }
 
     private func configureInput()

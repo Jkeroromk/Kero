@@ -23,6 +23,8 @@ final class AppModel
     var isPlaying = false
 
     var isShowingAddGames = false
+    /// Add Games opens straight to Wi-Fi Transfer (the home screen's Wi-Fi Transfer button).
+    var addGamesStartsWithWiFi = false
     var isShowingSettings = false
     var gamePendingDeletion: KeroGame?
     var gamePendingRename: KeroGame?
@@ -31,6 +33,8 @@ final class AppModel
     var message: AppMessage?
 
     @ObservationIgnored var modelContext: ModelContext?
+    /// Called just before a game is deleted, so screens showing it can step away first.
+    @ObservationIgnored var gameWillBeDeleted: ((KeroGame) -> Void)?
 
     var isShowingSheet: Bool {
         return self.isShowingAddGames || self.isShowingSettings || self.gamePendingDeletion != nil || self.gamePendingRename != nil || self.gamePendingCover != nil || self.message != nil
@@ -105,6 +109,7 @@ final class AppModel
             self.quitGame()
         }
 
+        self.gameWillBeDeleted?(game)
         KeroLibrary.delete(game, from: modelContext)
     }
 }
@@ -116,6 +121,23 @@ extension AppModel: KeroHomeHost
     }
 
     func launch(_ game: KeroGame, restart: Bool)
+    {
+        self.launch(game, restart: restart, loadingState: nil)
+    }
+
+    func play(_ game: KeroGame, loadingState slot: Int)
+    {
+        if let session = self.session, session.game.identifier == game.identifier
+        {
+            session.loadState(slot: slot, closesMenu: false)
+            self.resumeNowPlaying()
+            return
+        }
+
+        self.launch(game, restart: false, loadingState: slot)
+    }
+
+    private func launch(_ game: KeroGame, restart: Bool, loadingState slot: Int?)
     {
         if !restart, let session = self.session, session.game.identifier == game.identifier
         {
@@ -135,6 +157,11 @@ extension AppModel: KeroHomeHost
             try? self.modelContext?.save()
 
             session.start()
+            if let slot
+            {
+                // Queued now; the emulation thread loads it between frames, so the game starts from the state.
+                session.loadState(slot: slot, closesMenu: false)
+            }
             withAnimation(.spring(response: 0.45, dampingFraction: 0.9)) {
                 self.isPlaying = true
             }
@@ -157,6 +184,13 @@ extension AppModel: KeroHomeHost
 
     func showImport()
     {
+        self.addGamesStartsWithWiFi = false
+        self.isShowingAddGames = true
+    }
+
+    func showWiFiTransfer()
+    {
+        self.addGamesStartsWithWiFi = true
         self.isShowingAddGames = true
     }
 
@@ -186,6 +220,11 @@ extension AppModel: KeroHomeHost
         guard let game = self.gamePendingCover, let modelContext else { return }
         self.gamePendingCover = nil
         KeroCovers.setCustomCover(data, for: game, context: modelContext)
+    }
+
+    func saveNowPlaying(to slot: Int)
+    {
+        self.session?.save(to: slot)
     }
 
     func rename(_ game: KeroGame)

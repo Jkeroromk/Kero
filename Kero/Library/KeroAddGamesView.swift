@@ -19,10 +19,17 @@ struct KeroAddGamesView: View
     /// Non-nil while the file picker is showing.
     @State private var importerTypes: [UTType]?
     @State private var status: String?
+    @State private var path: [Destination] = []
+
+    enum Destination: Hashable
+    {
+        case wifiTransfer
+        case homebrew
+    }
 
     var body: some View
     {
-        NavigationStack {
+        NavigationStack(path: self.$path) {
             List {
                 Section {
                     Button {
@@ -37,17 +44,13 @@ struct KeroAddGamesView: View
                         KeroAddGamesRow(title: "Folder", subtitle: "Import every game in a folder at once", symbol: "folder.fill")
                     }
 
-                    NavigationLink {
-                        KeroWiFiTransferView()
-                    } label: {
+                    NavigationLink(value: Destination.wifiTransfer) {
                         KeroAddGamesRow(title: "Wi-Fi Transfer", subtitle: "Send games from a computer's browser", symbol: "wifi")
                     }
 
                     if !KeroHomebrewCatalog.games.isEmpty
                     {
-                        NavigationLink {
-                            KeroHomebrewStoreView()
-                        } label: {
+                        NavigationLink(value: Destination.homebrew) {
                             KeroAddGamesRow(title: "Free Homebrew", subtitle: "New games their authors share for free", symbol: "sparkles")
                         }
                     }
@@ -73,6 +76,13 @@ struct KeroAddGamesView: View
                 }
             }
             .buttonStyle(.plain)
+            .navigationDestination(for: Destination.self) { destination in
+                switch destination
+                {
+                case .wifiTransfer: KeroWiFiTransferView()
+                case .homebrew: KeroHomebrewStoreView()
+                }
+            }
             .navigationTitle("Add Games")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -97,6 +107,14 @@ struct KeroAddGamesView: View
             }
         }
         .preferredColorScheme(.dark)
+        .onAppear {
+            if self.appModel.addGamesStartsWithWiFi && self.path.isEmpty
+            {
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) { self.path = [.wifiTransfer] }
+            }
+        }
     }
 
     static func describe(_ result: KeroLibrary.ImportResult) -> String

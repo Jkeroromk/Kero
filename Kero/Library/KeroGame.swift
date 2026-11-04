@@ -38,6 +38,8 @@ final class KeroGame
     /// Set when the user renames the game; automatic names never override it.
     var isNameCustom: Bool = false
     var metadataVersion: Int = 0
+    /// Seconds spent actually playing (emulator running; menus, the home screen and the background don't count).
+    var playSeconds: Double = 0
 
     init(identifier: String, name: String, fileName: String, system: KeroSystem)
     {

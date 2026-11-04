@@ -83,7 +83,7 @@ struct GameView: View
 
                 if self.session.isFastForwarding
                 {
-                    Label("4×", systemImage: "forward.fill")
+                    Label("\(Int(self.session.fastForwardSpeed))×", systemImage: "forward.fill")
                         .font(.system(size: 12, weight: .heavy, design: .rounded))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 9)
@@ -93,25 +93,28 @@ struct GameView: View
                         .position(x: layout.screen.minX + 36, y: layout.screen.minY + 20)
                 }
 
-                if let toast = self.session.toast
-                {
-                    Text(toast)
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 9)
-                        .background(.ultraThinMaterial, in: Capsule())
-                        .fixedSize()
-                        .position(x: layout.screen.midX, y: layout.screen.minY + 30)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-
                 if self.session.isMenuVisible
                 {
-                    PauseMenu(session: self.session, onHome: self.onHome, onQuit: self.onQuit)
+                    KeroPauseMenu(session: self.session)
                         .frame(width: layout.size.width, height: layout.size.height)
                         .transition(.opacity.combined(with: .scale(scale: 1.04)))
                         .zIndex(1)
+                }
+
+                if let toast = self.session.toast
+                {
+                    Text(toast)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(KeroTheme.primaryText)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 9)
+                        .background(Color(hex: 0x1A1C22, opacity: 0.92), in: Capsule())
+                        .overlay(Capsule().strokeBorder(KeroTheme.strokeStrong, lineWidth: 1))
+                        .fixedSize()
+                        .position(x: self.session.isMenuVisible ? layout.size.width / 2 : layout.screen.midX,
+                                  y: self.session.isMenuVisible ? max(28, geometry.safeAreaInsets.top + 18) : layout.screen.minY + 30)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .zIndex(2)
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
@@ -120,6 +123,10 @@ struct GameView: View
         .statusBarHidden(true)
         .persistentSystemOverlays(.hidden)
         .defersSystemGestures(on: .all)
+        .onAppear {
+            self.session.onHome = self.onHome
+            self.session.onQuit = self.onQuit
+        }
     }
 
     /// `size` is the whole screen (safe areas ignored); `insets` are the safe areas to keep clear.
@@ -146,82 +153,5 @@ struct GameView: View
     private func screen(source: CGRect) -> some View
     {
         KeroGameScreen(emulator: self.session.emulator, filter: self.filter, usesIntegerScaling: self.usesIntegerScaling, sourceRect: source)
-    }
-}
-
-// MARK: - Pause Menu -
-
-private struct PauseMenu: View
-{
-    @Bindable var session: GameSession
-    var onHome: () -> Void
-    var onQuit: () -> Void
-
-    @AppStorage("videoFilter") private var filterRawValue = KeroVideoFilter.sharp.rawValue
-
-    var body: some View
-    {
-        ZStack {
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .ignoresSafeArea()
-                .onTapGesture { self.session.closeMenu() }
-
-            VStack(spacing: 18) {
-                VStack(spacing: 4) {
-                    Text(self.session.game.name)
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .multilineTextAlignment(.center)
-                    Text(self.session.game.system.name)
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundStyle(.secondary)
-                }
-
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 12)], spacing: 12) {
-                    self.item("Resume", "play.fill", tint: .green) { self.session.closeMenu() }
-                    self.item("Save State", "square.and.arrow.down.fill", tint: .blue) { self.session.saveState() }
-                    self.item("Load State", "square.and.arrow.up.fill", tint: .blue, disabled: !self.session.hasSaveState) { self.session.loadState() }
-                    self.item(self.session.isFastForwarding ? "Normal Speed" : "Fast Forward", "forward.fill", tint: .orange) {
-                        self.session.isFastForwarding.toggle()
-                        self.session.closeMenu()
-                    }
-                    self.item("Reset", "arrow.counterclockwise", tint: .orange) { self.session.reset() }
-                    self.item("Home", "house.fill", tint: .teal) { self.onHome() }
-                    self.item("Quit Game", "xmark", tint: .red) { self.onQuit() }
-                }
-                .frame(maxWidth: 460)
-
-                Picker("Screen", selection: self.$filterRawValue) {
-                    ForEach(KeroVideoFilter.allCases, id: \.rawValue) { filter in
-                        Text(filter.name).tag(filter.rawValue)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 360)
-            }
-            .padding(24)
-        }
-    }
-
-    private func item(_ title: String, _ symbol: String, tint: Color, disabled: Bool = false, action: @escaping () -> Void) -> some View
-    {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                Image(systemName: symbol)
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
-                    .background(Circle().fill(tint.gradient))
-                Text(title)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.primary)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .disabled(disabled)
-        .opacity(disabled ? 0.4 : 1)
     }
 }
