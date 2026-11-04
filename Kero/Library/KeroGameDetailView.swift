@@ -20,7 +20,8 @@ struct KeroGameDetailView: View
     var body: some View
     {
         GeometryReader { geometry in
-            let isCompact = geometry.size.width < 760
+            // Narrow or short windows scroll instead of fitting everything on one screen.
+            let isCompact = geometry.size.width < 760 || geometry.size.height < 560
             let metrics = KeroHomeMetrics(size: geometry.size)
 
             ZStack {

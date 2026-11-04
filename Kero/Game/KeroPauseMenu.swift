@@ -70,6 +70,7 @@ extension GameSession
     func handleMenuCommand(_ command: KeroCommand)
     {
         guard self.isMenuVisible else { return }
+        if !self.menuUsesFocus { self.menuUsesFocus = true }
 
         switch command
         {
@@ -223,7 +224,7 @@ struct KeroPauseMenu: View
 
     @AppStorage("videoFilter") private var filterRawValue = KeroVideoFilter.sharp.rawValue
 
-    private var showsFocus: Bool { self.session.isControllerConnected }
+    private var showsFocus: Bool { self.session.isControllerConnected || self.session.menuUsesFocus }
 
     var body: some View
     {

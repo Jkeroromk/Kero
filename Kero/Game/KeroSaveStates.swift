@@ -301,6 +301,11 @@ struct KeroSaveStateThumbnail: View
                         }
                     }
                 }
+                else if self.system == .nintendoDS
+                {
+                    // Small rows: just the top screen.
+                    self.half(image, top: true)
+                }
                 else
                 {
                     Color.clear.overlay {

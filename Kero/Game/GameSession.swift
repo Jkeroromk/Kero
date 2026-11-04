@@ -52,6 +52,8 @@ final class GameSession
 
     /// Controller focus in the pause menu.
     var menuFocus: KeroPauseFocus = .resume
+    /// A controller or keyboard has moved around the pause menu, so its focus ring shows.
+    var menuUsesFocus = false
 
     /// Set by the game screen, so controller commands in the pause menu can go home or quit.
     @ObservationIgnored var onHome: (() -> Void)?

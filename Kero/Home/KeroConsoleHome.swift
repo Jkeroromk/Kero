@@ -68,7 +68,7 @@ struct KeroHomeMetrics
     init(size: CGSize)
     {
         self.size = size
-        self.scale = min(1.25, max(0.58, min(size.width / 1180, size.height / 830)))
+        self.scale = min(1.25, max(0.5, min(size.width / 1180, size.height / 830)))
     }
 
     func s(_ value: CGFloat) -> CGFloat { value * self.scale }
